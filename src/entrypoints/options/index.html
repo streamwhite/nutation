@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Translate Settings</title>
+    <meta name="manifest.open_in_tab" content="true" />
+  </head>
+  <body class="bg-light">
+    <div class="container py-4" style="max-width: 640px;">
+      <h1 class="h3 mb-1">Page Translate Settings</h1>
+      <p class="text-muted mb-4">
+        Configure any OpenAI-compatible API endpoint (OpenAI, DeepSeek, Groq, Ollama, etc.).
+      </p>
+
+      <form id="settings-form" class="card shadow-sm border-0">
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="base-url" class="form-label">Base URL</label>
+            <input
+              id="base-url"
+              class="form-control"
+              type="url"
+              required
+              placeholder="https://api.openai.com/v1"
+              autocomplete="off"
+            />
+            <div class="form-text">Should end with <code>/v1</code> for most providers.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="api-key" class="form-label">API key</label>
+            <input
+              id="api-key"
+              class="form-control"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="model" class="form-label">Model</label>
+            <input
+              id="model"
+              class="form-control"
+              type="text"
+              required
+              placeholder="gpt-4o-mini"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="target-lang" class="form-label">Default target language</label>
+            <input
+              id="target-lang"
+              class="form-control"
+              type="text"
+              required
+              placeholder="zh-CN"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="concurrency" class="form-label">Concurrency</label>
+            <input
+              id="concurrency"
+              class="form-control"
+              type="number"
+              min="1"
+              max="10"
+              required
+            />
+          </div>
+
+          <button class="btn btn-primary" type="submit">Save settings</button>
+        </div>
+      </form>
+
+      <div id="save-alert" class="alert alert-success mt-3 d-none" role="alert">
+        Settings saved.
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
