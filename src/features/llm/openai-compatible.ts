@@ -1,13 +1,14 @@
+import { TranslationRequestError } from '@/features/llm/retry';
+import { buildChatCompletionsUrl } from '@/features/llm/api-url';
+import { buildChatCompletionBody } from '@/features/llm/request-body';
 import type { TextChunk } from '@/features/translate/types';
+import { RETRYABLE_HTTP_STATUSES } from '@/shared/constants';
+import { buildRequestHeaders } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
-const SYSTEM_PROMPT = [
-  'You are a translation engine.',
-  'Translate each item to the requested target language.',
-  'Preserve meaning and tone. Do not add explanations.',
-  'Return only a JSON array of objects with keys id and text.',
-  'Keep the same id for each item. text must be the translation.',
-].join(' ');
+export { estimateMaxTokens } from '@/features/llm/request-body';
+
+const LINE_PATTERN = /^([^|\t\n]+)[|\t](.+)$/;
 
 type ChatCompletionResponse = {
   choices?: Array<{
@@ -20,15 +21,28 @@ type ChatCompletionResponse = {
   };
 };
 
-function buildUserPrompt(texts: TextChunk[], targetLang: string): string {
-  return [
-    `Target language: ${targetLang}`,
-    'Items:',
-    JSON.stringify(texts),
-  ].join('\n');
+function parseLineFormat(content: string): TextChunk[] | null {
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('lang='));
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const parsed: TextChunk[] = [];
+  for (const line of lines) {
+    const match = line.match(LINE_PATTERN);
+    if (!match) {
+      return null;
+    }
+    parsed.push({ id: match[1], text: match[2].trim() });
+  }
+  return parsed;
 }
 
-function parseTranslationContent(content: string): TextChunk[] {
+function parseJsonFormat(content: string): TextChunk[] {
   const trimmed = content.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const jsonText = fenced ? fenced[1].trim() : trimmed;
@@ -52,6 +66,19 @@ function parseTranslationContent(content: string): TextChunk[] {
   });
 }
 
+export function parseTranslationContent(content: string): TextChunk[] {
+  const lineParsed = parseLineFormat(content);
+  if (lineParsed) {
+    return lineParsed;
+  }
+
+  try {
+    return parseJsonFormat(content);
+  } catch {
+    throw new Error('Model response is not valid line or JSON format');
+  }
+}
+
 export async function translateBatchWithOpenAI(
   settings: ExtensionSettings,
   texts: TextChunk[],
@@ -66,27 +93,24 @@ export async function translateBatchWithOpenAI(
     throw new Error('API key is missing. Configure it in extension options.');
   }
 
-  const endpoint = `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const endpoint = buildChatCompletionsUrl(settings.baseUrl);
   const response = await fetchImpl(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: settings.model,
-      temperature: 0,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(texts, targetLang) },
-      ],
-    }),
+    headers: buildRequestHeaders(settings),
+    body: JSON.stringify(buildChatCompletionBody(settings, texts, targetLang)),
   });
 
   const payload = await response.json() as ChatCompletionResponse;
   if (!response.ok) {
     const message = payload.error?.message || `HTTP ${response.status}`;
-    throw new Error(`Translation request failed: ${message}`);
+    const retryable = RETRYABLE_HTTP_STATUSES.includes(
+      response.status as typeof RETRYABLE_HTTP_STATUSES[number],
+    );
+    throw new TranslationRequestError(
+      `Translation request failed: ${message}`,
+      response.status,
+      retryable,
+    );
   }
 
   const content = payload.choices?.[0]?.message?.content;

@@ -13,19 +13,32 @@
         Configure any OpenAI-compatible API endpoint (OpenAI, DeepSeek, Groq, Ollama, etc.).
       </p>
 
-      <form id="settings-form" class="card shadow-sm border-0">
+      <form id="settings-form" class="card shadow-sm border-0" novalidate>
         <div class="card-body">
+          <div class="mb-3">
+            <label for="provider" class="form-label">Provider</label>
+            <select id="provider" class="form-select" required></select>
+            <div class="form-text">
+              Presets for OpenRouter, Gemini, and OpenAI. Choose Custom for other OpenAI-compatible APIs.
+            </div>
+          </div>
+
           <div class="mb-3">
             <label for="base-url" class="form-label">Base URL</label>
             <input
               id="base-url"
               class="form-control"
-              type="url"
+              type="text"
+              inputmode="url"
               required
-              placeholder="https://api.openai.com/v1"
+              placeholder="https://openrouter.ai/api/v1"
               autocomplete="off"
             />
-            <div class="form-text">Should end with <code>/v1</code> for most providers.</div>
+            <div class="form-text">
+              API root only, e.g. <code>https://openrouter.ai/api/v1</code> or
+              <code>https://generativelanguage.googleapis.com/v1beta/openai</code>.
+              Do not include <code>/chat/completions</code>.
+            </div>
           </div>
 
           <div class="mb-3">
@@ -34,7 +47,7 @@
               id="api-key"
               class="form-control"
               type="password"
-              placeholder="sk-..."
+              placeholder="Gemini API key"
               autocomplete="off"
             />
           </div>
@@ -46,7 +59,7 @@
               class="form-control"
               type="text"
               required
-              placeholder="gpt-4o-mini"
+              placeholder="gemini-2.5-flash"
               autocomplete="off"
             />
           </div>
@@ -75,13 +88,29 @@
             />
           </div>
 
-          <button class="btn btn-primary" type="submit">Save settings</button>
+          <div class="form-check mb-3">
+            <input
+              id="auto-recover"
+              class="form-check-input"
+              type="checkbox"
+              checked
+            />
+            <label for="auto-recover" class="form-check-label">
+              Auto-recover missing content script (inject, then reload page)
+            </label>
+            <div class="form-text">
+              Fixes errors like “Receiving end does not exist” on tabs opened before the extension loaded.
+            </div>
+          </div>
+
+          <button id="save-btn" class="btn btn-primary" type="submit">Save settings</button>
         </div>
       </form>
 
       <div id="save-alert" class="alert alert-success mt-3 d-none" role="alert">
         Settings saved.
       </div>
+      <div id="save-error" class="alert alert-danger mt-3 d-none" role="alert"></div>
     </div>
     <script type="module" src="./main.ts"></script>
   </body>

@@ -1,5 +1,5 @@
 import { PageTranslator } from '@/features/translate/page-translator';
-import type { ExtensionMessage } from '@/features/translate/types';
+import type { ContentScriptMessage } from '@/features/translate/types';
 import { MESSAGE_TYPES } from '@/shared/constants';
 import { loadSettings } from '@/shared/settings';
 
@@ -8,12 +8,15 @@ const translator = new PageTranslator();
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
+  allFrames: true,
+  matchAboutBlank: true,
   main() {
-    browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
+    browser.runtime.onMessage.addListener((message: ContentScriptMessage) => {
       if (message.type === MESSAGE_TYPES.START_TRANSLATE) {
         return loadSettings().then((settings) => {
           const targetLang = message.targetLang || settings.targetLang;
-          return translator.start(targetLang, settings.concurrency);
+          const concurrency = message.concurrency ?? settings.concurrency;
+          return translator.start(targetLang, concurrency, settings);
         }).catch((error: unknown) => ({
           active: false,
           error: error instanceof Error ? error.message : String(error),

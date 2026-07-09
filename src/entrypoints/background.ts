@@ -1,49 +1,111 @@
+import { registerContentScriptIfNeeded, recoverContentScript } from '@/features/content-script/recover';
 import { translateBatchWithOpenAI } from '@/features/llm/openai-compatible';
+import { isRetryableError, TranslationRequestError, withRetries } from '@/features/llm/retry';
 import {
-  getCachedTranslation,
-  setCachedTranslation,
+  getCachedTranslations,
+  setCachedTranslations,
 } from '@/features/translate/cache';
+import { getCachedSettings, primeSettingsCache } from '@/features/translate/settings-cache';
+import { normalizeCacheText } from '@/features/translate/text-normalize';
 import type {
-  ExtensionMessage,
+  BackgroundMessage,
+  EnsureContentScriptResponse,
   TextChunk,
   TranslateBatchResponse,
 } from '@/features/translate/types';
 import { MESSAGE_TYPES } from '@/shared/constants';
-import { loadSettings } from '@/shared/settings';
 
 async function translateWithCache(
   texts: TextChunk[],
   targetLang: string,
 ): Promise<TextChunk[]> {
-  const settings = await loadSettings();
-  const missing: TextChunk[] = [];
+  const settings = await getCachedSettings();
   const translations: TextChunk[] = [];
+  const uniqueMissing: TextChunk[] = [];
+  const expand = new Map<string, string[]>();
+  const firstIdByText = new Map<string, string>();
 
-  await Promise.all(texts.map(async (item) => {
-    const cached = await getCachedTranslation(item.text, targetLang, settings.model);
+  const normalizedTexts = texts.map((item) => normalizeCacheText(item.text));
+  const cachedByText = await getCachedTranslations(
+    normalizedTexts,
+    targetLang,
+    settings.model,
+  );
+
+  for (const item of texts) {
+    const normalized = normalizeCacheText(item.text);
+    const cached = cachedByText.get(normalized);
     if (cached) {
       translations.push({ id: item.id, text: cached });
-      return;
+      continue;
     }
-    missing.push(item);
-  }));
 
-  if (missing.length > 0) {
-    const fresh = await translateBatchWithOpenAI(settings, missing, targetLang);
-    await Promise.all(fresh.map(async (item) => {
-      const original = missing.find((entry) => entry.id === item.id);
-      if (original) {
-        await setCachedTranslation(original.text, targetLang, settings.model, item.text);
-      }
-      translations.push(item);
-    }));
+    const existingId = firstIdByText.get(normalized);
+    if (existingId) {
+      const ids = expand.get(existingId);
+      ids?.push(item.id);
+      continue;
+    }
+
+    firstIdByText.set(normalized, item.id);
+    expand.set(item.id, [item.id]);
+    uniqueMissing.push({ id: item.id, text: normalized });
+  }
+
+  if (uniqueMissing.length === 0) {
+    return translations;
+  }
+
+  const fresh = await withRetries(
+    () => translateBatchWithOpenAI(settings, uniqueMissing, targetLang),
+  );
+  const freshById = new Map(fresh.map((item) => [item.id, item.text]));
+  const cacheEntries = uniqueMissing.flatMap((item) => {
+    const translation = freshById.get(item.id);
+    return translation ? [{ text: item.text, translation }] : [];
+  });
+
+  setCachedTranslations(cacheEntries, targetLang, settings.model);
+
+  for (const item of fresh) {
+    const ids = expand.get(item.id) ?? [item.id];
+    for (const id of ids) {
+      translations.push({ id, text: item.text });
+    }
   }
 
   return translations;
 }
 
 export default defineBackground(() => {
-  browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
+  primeSettingsCache();
+
+  void registerContentScriptIfNeeded().catch((error: unknown) => {
+    console.error('Failed to register content script', error);
+  });
+
+  browser.runtime.onInstalled.addListener(() => {
+    void registerContentScriptIfNeeded().catch((error: unknown) => {
+      console.error('Failed to register content script on install', error);
+    });
+  });
+
+  browser.runtime.onMessage.addListener((message: BackgroundMessage) => {
+    if (message.type === MESSAGE_TYPES.ENSURE_CONTENT_SCRIPT) {
+      return recoverContentScript(message.tabId)
+        .then((result): EnsureContentScriptResponse => result)
+        .catch((error: unknown): EnsureContentScriptResponse => ({
+          ok: false,
+          recovered: false,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+    }
+
+    if (message.type === MESSAGE_TYPES.PERSIST_TRANSLATIONS) {
+      setCachedTranslations(message.entries, message.targetLang, message.model);
+      return Promise.resolve({ ok: true });
+    }
+
     if (message.type !== MESSAGE_TYPES.TRANSLATE_BATCH) {
       return undefined;
     }
@@ -53,9 +115,20 @@ export default defineBackground(() => {
         ok: true,
         translations,
       }))
-      .catch((error: unknown): TranslateBatchResponse => ({
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      }));
+      .catch((error: unknown): TranslateBatchResponse => {
+        if (error instanceof TranslationRequestError) {
+          return {
+            ok: false,
+            error: error.message,
+            retryable: error.retryable,
+            status: error.status,
+          };
+        }
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          retryable: isRetryableError(error),
+        };
+      });
   });
 });

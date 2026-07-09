@@ -11,7 +11,7 @@ export class TextNodeRegistry {
 
   register(node: Text, original: string): string {
     const existingId = this.byNode.get(node);
-    if (existingId) {
+    if (existingId && this.byId.has(existingId)) {
       return existingId;
     }
 
@@ -27,8 +27,15 @@ export class TextNodeRegistry {
     return this.byId.get(id);
   }
 
+  release(ids: string[]): void {
+    for (const id of ids) {
+      this.byId.delete(id);
+    }
+  }
+
   hasNode(node: Text): boolean {
-    return this.byNode.has(node);
+    const id = this.byNode.get(node);
+    return id !== undefined && this.byId.has(id);
   }
 
   applyTranslation(id: string, translation: string): boolean {
