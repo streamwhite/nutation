@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRequestHeaders,
-  getProviderPreset,
-  inferProviderFromBaseUrl,
+  normalizeGeminiModel,
+  normalizeModelName,
+  toGeminiInteractionModelId,
 } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
@@ -12,24 +13,32 @@ const baseSettings: ExtensionSettings = {
   apiKey: 'test-key',
   model: 'deepseek/deepseek-v4-flash',
   targetLang: 'zh-CN',
-  concurrency: 3,
   autoRecoverContentScript: true,
+  translationMode: 'bulk',
 };
 
-describe('getProviderPreset', () => {
-  it('returns openrouter and gemini presets', () => {
-    expect(getProviderPreset('openrouter').baseUrl).toBe('https://openrouter.ai/api/v1');
-    expect(getProviderPreset('gemini').baseUrl)
-      .toBe('https://generativelanguage.googleapis.com/v1beta/openai');
+describe('normalizeGeminiModel', () => {
+  it('strips models/ prefix and maps 3.1 flash-lite back to 2.5 default', () => {
+    expect(normalizeGeminiModel('gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
+    expect(normalizeGeminiModel('models/gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
+    expect(normalizeGeminiModel('models/models/gemini-2.5-flash')).toBe('gemini-2.5-flash');
+    expect(normalizeGeminiModel('gemini-2.5-flash')).toBe('gemini-2.5-flash');
+    expect(normalizeGeminiModel('gemini-3.1-flash-lite')).toBe('gemini-2.5-flash-lite');
   });
 });
 
-describe('inferProviderFromBaseUrl', () => {
-  it('detects provider from base url', () => {
-    expect(inferProviderFromBaseUrl('https://openrouter.ai/api/v1')).toBe('openrouter');
-    expect(inferProviderFromBaseUrl('https://generativelanguage.googleapis.com/v1beta/openai'))
-      .toBe('gemini');
-    expect(inferProviderFromBaseUrl('https://api.example.com/v1')).toBe('custom');
+describe('toGeminiInteractionModelId', () => {
+  it('never keeps a models/ prefix for interactions', () => {
+    expect(toGeminiInteractionModelId('models/gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
+  });
+});
+
+describe('normalizeModelName', () => {
+  it('prefixes bare gemini models for openrouter', () => {
+    expect(normalizeModelName('openrouter', 'gemini-2.5-flash-lite'))
+      .toBe('google/gemini-2.5-flash-lite');
+    expect(normalizeModelName('gemini', 'gemini-2.5-flash-lite'))
+      .toBe('gemini-2.5-flash-lite');
   });
 });
 
@@ -41,12 +50,13 @@ describe('buildRequestHeaders', () => {
     expect(headers['X-Title']).toBeTruthy();
   });
 
-  it('uses bearer auth only for gemini', () => {
+  it('uses bearer and goog api key for gemini', () => {
     const headers = buildRequestHeaders({
       provider: 'gemini',
       apiKey: 'test-key',
     });
     expect(headers.Authorization).toBe('Bearer test-key');
+    expect(headers['x-goog-api-key']).toBe('test-key');
     expect(headers['HTTP-Referer']).toBeUndefined();
   });
 });

@@ -8,8 +8,8 @@ const settings: ExtensionSettings = {
   apiKey: 'test-key',
   model: 'test-model',
   targetLang: 'zh-CN',
-  concurrency: 2,
   autoRecoverContentScript: true,
+  translationMode: 'bulk',
 };
 
 describe('translateBatchWithOpenAI', () => {

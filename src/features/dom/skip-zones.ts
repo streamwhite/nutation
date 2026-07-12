@@ -18,7 +18,14 @@ function classTokens(element: Element): string[] {
 }
 
 function matchesToken(tokens: string[], needles: readonly string[]): boolean {
-  return tokens.some((token) => needles.some((needle) => token.includes(needle)));
+  return tokens.some((token) => needles.some((needle) => {
+    if (token === needle) {
+      return true;
+    }
+    return token.startsWith(`${needle}-`)
+      || token.endsWith(`-${needle}`)
+      || token.includes(`-${needle}-`);
+  }));
 }
 
 function hasAncestorMatch(

@@ -25,6 +25,9 @@ export function isRetryableError(error: unknown): boolean {
     return error.retryable;
   }
   const message = error instanceof Error ? error.message : String(error);
+  if (/failed to fetch|unable to make request|networkerror/i.test(message)) {
+    return true;
+  }
   const statusMatch = message.match(/HTTP\s+(\d{3})/i);
   if (!statusMatch) {
     return false;

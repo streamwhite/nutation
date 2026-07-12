@@ -15,12 +15,13 @@ export default defineContentScript({
       if (message.type === MESSAGE_TYPES.START_TRANSLATE) {
         return loadSettings().then((settings) => {
           const targetLang = message.targetLang || settings.targetLang;
-          const concurrency = message.concurrency ?? settings.concurrency;
-          return translator.start(targetLang, concurrency, settings);
+          return translator.start(targetLang, settings);
         }).catch((error: unknown) => ({
           active: false,
           error: error instanceof Error ? error.message : String(error),
           translatedCount: 0,
+          cacheHits: 0,
+          cacheLookups: 0,
         }));
       }
 

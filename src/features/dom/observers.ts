@@ -39,6 +39,8 @@ export function observeMutations(
     childList: true,
     subtree: true,
     characterData: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
   });
 
   return observer;

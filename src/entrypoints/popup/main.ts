@@ -1,27 +1,32 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { isConnectionError } from '@/features/content-script/recover';
+import {
+  getRestrictedPageMessage,
+  isConnectionError,
+  isRestrictedUrl,
+} from '@/features/content-script/recover';
 import {
   mergeTabStatuses,
   sendMessageToAllFrames,
 } from '@/features/content-script/frame-messaging';
-import { formatStatusWithTiming } from '@/features/translate/page-translator';
+import { formatStatusText } from '@/features/translate/page-translator';
 import { MESSAGE_TYPES, POPUP_STATUS_POLL_MS } from '@/shared/constants';
-import { loadSettings, saveSettings } from '@/shared/settings';
+import { API_KEY_MISSING_MESSAGE, hasApiKey } from '@/shared/api-key';
+import { loadSettings, type ExtensionSettings } from '@/shared/settings';
 import type {
   ContentScriptMessage,
   EnsureContentScriptResponse,
   TabStatus,
 } from '@/features/translate/types';
 
-const targetLangInput = document.querySelector<HTMLInputElement>('#target-lang')!;
 const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
 const stopBtn = document.querySelector<HTMLButtonElement>('#stop-btn')!;
+const reloadBtn = document.querySelector<HTMLButtonElement>('#reload-btn')!;
 const statusEl = document.querySelector<HTMLElement>('#status')!;
-const timingEl = document.querySelector<HTMLElement>('#timing')!;
 const errorEl = document.querySelector<HTMLElement>('#error')!;
 const openOptions = document.querySelector<HTMLAnchorElement>('#open-options')!;
 
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
+let pendingReloadTabId: number | null = null;
 
 function setError(message: string | null): void {
   if (!message) {
@@ -33,16 +38,19 @@ function setError(message: string | null): void {
   errorEl.textContent = message;
 }
 
+function setReloadAction(tabId: number | null): void {
+  pendingReloadTabId = tabId;
+  if (tabId === null) {
+    reloadBtn.classList.add('d-none');
+    return;
+  }
+  reloadBtn.classList.remove('d-none');
+}
+
 function renderStatus(status: TabStatus): void {
-  statusEl.textContent = formatStatusWithTiming(status);
-    if (timingEl) {
-      timingEl.textContent = status.timing
-        ? Object.entries(status.timing.stages)
-          .map(([name, stats]) => `${name} ${stats.totalMs}ms (${stats.count}x, max ${stats.maxMs}ms)`)
-          .join(' · ')
-        : '';
-    }
+  statusEl.textContent = formatStatusText(status);
   setError(status.error);
+  setReloadAction(null);
 
   if (status.active) {
     startStatusPolling();
@@ -68,13 +76,13 @@ function stopStatusPolling(): void {
   statusPollTimer = null;
 }
 
-async function getActiveTabId(): Promise<number> {
+async function getActiveTab(): Promise<{ id: number; url: string }> {
   const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-  const tabId = tabs[0]?.id;
-  if (typeof tabId !== 'number') {
+  const tab = tabs[0];
+  if (typeof tab?.id !== 'number') {
     throw new Error('No active tab found');
   }
-  return tabId;
+  return { id: tab.id, url: tab.url ?? '' };
 }
 
 function formatContentScriptError(error: unknown): Error {
@@ -89,10 +97,11 @@ async function recoverContentScript(tabId: number): Promise<EnsureContentScriptR
   }) as Promise<EnsureContentScriptResponse>;
 }
 
-async function sendToActiveTab<T>(message: ContentScriptMessage): Promise<T> {
-  const tabId = await getActiveTabId();
-  const settings = await loadSettings();
-
+async function sendToTab<T>(
+  tabId: number,
+  message: ContentScriptMessage,
+  autoRecover: boolean,
+): Promise<T> {
   try {
     const results = await sendMessageToAllFrames<T>(tabId, message);
     if (message.type === MESSAGE_TYPES.GET_TAB_STATUS
@@ -102,11 +111,16 @@ async function sendToActiveTab<T>(message: ContentScriptMessage): Promise<T> {
     }
     return results[0] as T;
   } catch (error) {
-    if (!settings.autoRecoverContentScript || !isConnectionError(error)) {
+    if (!isConnectionError(error)) {
+      throw error;
+    }
+
+    if (!autoRecover) {
       throw formatContentScriptError(error);
     }
 
     statusEl.textContent = 'Recovering content script…';
+    setReloadAction(null);
     const recovered = await recoverContentScript(tabId);
     if (!recovered.ok) {
       throw new Error(recovered.error ?? 'Failed to recover content script');
@@ -132,54 +146,169 @@ async function sendToActiveTab<T>(message: ContentScriptMessage): Promise<T> {
 
 async function refreshStatus(): Promise<void> {
   try {
-    const status = await sendToActiveTab<TabStatus>({
-      type: MESSAGE_TYPES.GET_TAB_STATUS,
-    });
+    const tab = await getActiveTab();
+    if (isRestrictedUrl(tab.url)) {
+      statusEl.textContent = 'Open a website tab to translate';
+      setError(null);
+      setReloadAction(null);
+      stopStatusPolling();
+      return;
+    }
+
+    const settings = await loadSettings();
+    const status = await sendToTab<TabStatus>(
+      tab.id,
+      { type: MESSAGE_TYPES.GET_TAB_STATUS },
+      settings.autoRecoverContentScript,
+    );
     renderStatus(status);
   } catch (error) {
-    setError(error instanceof Error ? error.message : String(error));
+    const message = error instanceof Error ? error.message : String(error);
+    if (/cannot be translated/i.test(message)) {
+      statusEl.textContent = 'Open a website tab to translate';
+      setError(null);
+      setReloadAction(null);
+    } else if (isConnectionError(error) || /content script unavailable/i.test(message)) {
+      const settings = await loadSettings().catch(() => null);
+      setError(message);
+      if (settings && !settings.autoRecoverContentScript) {
+        const tab = await getActiveTab().catch(() => null);
+        setReloadAction(tab?.id ?? null);
+      } else {
+        setReloadAction(null);
+      }
+    } else {
+      setError(message);
+      setReloadAction(null);
+    }
     stopStatusPolling();
+  }
+}
+
+function setTranslateEnabled(enabled: boolean): void {
+  startBtn.disabled = !enabled;
+}
+
+function requireApiKey(settings: ExtensionSettings): boolean {
+  if (hasApiKey(settings)) {
+    setTranslateEnabled(true);
+    return true;
+  }
+  setTranslateEnabled(false);
+  setError(API_KEY_MISSING_MESSAGE);
+  setReloadAction(null);
+  statusEl.textContent = 'Idle';
+  stopStatusPolling();
+  return false;
+}
+
+function warmProvider(settings: ExtensionSettings): void {
+  void browser.runtime.sendMessage({
+    type: MESSAGE_TYPES.WARM_PROVIDER,
+    settings,
+  }).catch(() => undefined);
+}
+
+async function startTranslate(): Promise<void> {
+  setError(null);
+  setReloadAction(null);
+
+  const settings = await loadSettings();
+  if (!requireApiKey(settings)) {
+    return;
+  }
+
+  const tab = await getActiveTab();
+  if (isRestrictedUrl(tab.url)) {
+    statusEl.textContent = 'Idle';
+    setError(getRestrictedPageMessage());
+    return;
+  }
+
+  warmProvider(settings);
+
+  statusEl.textContent = 'Starting…';
+  try {
+    const status = await sendToTab<TabStatus>(
+      tab.id,
+      {
+        type: MESSAGE_TYPES.START_TRANSLATE,
+        targetLang: settings.targetLang,
+      },
+      settings.autoRecoverContentScript,
+    );
+    renderStatus(status);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/cannot be translated/i.test(message)) {
+      setError(message);
+      setReloadAction(null);
+      return;
+    }
+    setError(message);
+    if (!settings.autoRecoverContentScript && (
+      isConnectionError(error) || /content script unavailable/i.test(message)
+    )) {
+      setReloadAction(tab.id);
+    }
   }
 }
 
 async function init(): Promise<void> {
   const settings = await loadSettings();
-  targetLangInput.value = settings.targetLang;
+  if (!requireApiKey(settings)) {
+    return;
+  }
+  warmProvider(settings);
   await refreshStatus();
 }
 
-startBtn.addEventListener('click', async () => {
-  try {
-    setError(null);
-    const targetLang = targetLangInput.value.trim();
-    if (!targetLang) {
-      throw new Error('Target language is required');
-    }
-
-    const settings = await loadSettings();
-    await saveSettings({ ...settings, targetLang });
-
-    statusEl.textContent = 'Starting…';
-    const status = await sendToActiveTab<TabStatus>({
-      type: MESSAGE_TYPES.START_TRANSLATE,
-      targetLang,
-      concurrency: settings.concurrency,
-    });
-    renderStatus(status);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : String(error));
-  }
+startBtn.addEventListener('click', () => {
+  void startTranslate();
 });
 
 stopBtn.addEventListener('click', async () => {
   try {
     setError(null);
-    const status = await sendToActiveTab<TabStatus>({
-      type: MESSAGE_TYPES.STOP_TRANSLATE,
-    });
+    setReloadAction(null);
+    const tab = await getActiveTab();
+    if (isRestrictedUrl(tab.url)) {
+      setError(getRestrictedPageMessage());
+      return;
+    }
+    const settings = await loadSettings();
+    const status = await sendToTab<TabStatus>(
+      tab.id,
+      { type: MESSAGE_TYPES.STOP_TRANSLATE },
+      settings.autoRecoverContentScript,
+    );
     renderStatus(status);
   } catch (error) {
     setError(error instanceof Error ? error.message : String(error));
+    setReloadAction(null);
+  }
+});
+
+reloadBtn.addEventListener('click', async () => {
+  const tabId = pendingReloadTabId;
+  if (typeof tabId !== 'number') {
+    return;
+  }
+
+  reloadBtn.disabled = true;
+  setError(null);
+  statusEl.textContent = 'Reloading page…';
+
+  try {
+    await browser.tabs.reload(tabId);
+    statusEl.textContent = 'Page reloaded. Starting…';
+    setReloadAction(null);
+    await startTranslate();
+  } catch (error) {
+    setError(error instanceof Error ? error.message : String(error));
+    setReloadAction(tabId);
+  } finally {
+    reloadBtn.disabled = false;
   }
 });
 

@@ -1,30 +1,34 @@
 import { collectTextNodes } from '@/features/dom/collect-text';
-import { findCollectionRoot } from '@/features/dom/content-root';
+import { findCollectionRoot, isListingFeedRoot } from '@/features/dom/content-root';
 import { createDebouncedCallback, observeMutations, observeVisibleElements } from '@/features/dom/observers';
 import { TextNodeRegistry } from '@/features/dom/registry';
 import {
   dedupeTextChunks,
   expandTranslations,
+  getBatchPackOptions,
   packBatchesByBudget,
+  pickFastFirstBatch,
   shouldTranslateText,
 } from '@/features/translate/batch';
 import { InPageTranslator } from '@/features/translate/in-page-translate';
-import { formatTimingSummary, StageTimer } from '@/features/translate/stage-timer';
+import { StageTimer } from '@/features/translate/stage-timer';
 import type { TabStatus, TextChunk } from '@/features/translate/types';
+import { resolveElementLang } from '@/features/opencc/locale';
 import {
   FLUSH_COALESCE_MS,
   INTERSECTION_ROOT_MARGIN,
   MIN_TRANSLATE_TEXT_LENGTH,
   QUEUE_VISIBLE_DEBOUNCE_MS,
   TRANSLATE_BATCH_FAILURE_DELAY_MS,
-  TRANSLATE_BATCH_MAX_CHARS,
-  TRANSLATE_BATCH_SIZE,
   TRANSLATE_CONCURRENCY,
   TRANSLATE_FAST_LANE_BATCH_SIZE,
   TRANSLATE_FAST_LANE_MAX_CHARS,
-  TRANSLATE_FAST_LANE_PARALLEL,
 } from '@/shared/constants';
 import type { ExtensionSettings } from '@/shared/settings';
+import {
+  DEFAULT_TRANSLATION_MODE,
+  type TranslationMode,
+} from '@/shared/translation-mode';
 
 const VIEWPORT_MARGIN_PX = Number.parseInt(INTERSECTION_ROOT_MARGIN, 10) || 400;
 
@@ -41,6 +45,9 @@ export class PageTranslator {
   private error: string | null = null;
   private targetLang = 'zh-CN';
   private concurrency = TRANSLATE_CONCURRENCY;
+  private translationMode: TranslationMode = DEFAULT_TRANSLATION_MODE;
+  private bulkInitialCollectPending = true;
+  private bulkInitialPackPending = true;
   private contentRoot: Element | null = null;
   private mutationObserver: MutationObserver | null = null;
   private intersectionObserver: IntersectionObserver | null = null;
@@ -62,25 +69,32 @@ export class PageTranslator {
     },
     QUEUE_VISIBLE_DEBOUNCE_MS,
   );
+  private scrollResizeBound = false;
 
   getStatus(): TabStatus {
+    const cache = this.inPageTranslator?.getCacheStats();
     return {
       active: this.active,
       error: this.error,
       translatedCount: this.registry.translatedCount(),
+      cacheHits: cache?.hits ?? 0,
+      cacheLookups: cache?.lookups ?? 0,
       timing: this.timing.getSummary(),
     };
   }
 
   async start(
     targetLang: string,
-    concurrency: number,
     settings: ExtensionSettings,
   ): Promise<TabStatus> {
     this.timing.reset();
     this.targetLang = targetLang;
-    this.concurrency = Math.max(concurrency, TRANSLATE_CONCURRENCY);
+    this.concurrency = TRANSLATE_CONCURRENCY;
+    this.translationMode = settings.translationMode;
+    this.bulkInitialCollectPending = true;
+    this.bulkInitialPackPending = true;
     this.inPageTranslator = new InPageTranslator(settings, targetLang, this.timing);
+    this.inPageTranslator.warmProvider();
     this.batchQueue = [];
     this.inFlightCount = 0;
     this.fastLaneDone = false;
@@ -88,6 +102,7 @@ export class PageTranslator {
     this.active = true;
     this.contentRoot = findCollectionRoot(document);
     this.ensureObservers();
+    this.bindScrollResize();
     this.queueVisibleCandidates();
     void this.drainQueue();
     return this.getStatus();
@@ -105,6 +120,7 @@ export class PageTranslator {
     }
     this.scheduleFlush.cancel();
     this.scheduleQueueVisible.cancel();
+    this.unbindScrollResize();
     this.teardownObservers();
     this.registry.restoreAll();
     this.registry.clear();
@@ -150,6 +166,24 @@ export class PageTranslator {
     });
   }
 
+  private bindScrollResize(): void {
+    if (this.scrollResizeBound) {
+      return;
+    }
+    this.scrollResizeBound = true;
+    window.addEventListener('scroll', this.scheduleQueueVisible, { passive: true });
+    window.addEventListener('resize', this.scheduleQueueVisible, { passive: true });
+  }
+
+  private unbindScrollResize(): void {
+    if (!this.scrollResizeBound) {
+      return;
+    }
+    this.scrollResizeBound = false;
+    window.removeEventListener('scroll', this.scheduleQueueVisible);
+    window.removeEventListener('resize', this.scheduleQueueVisible);
+  }
+
   private teardownObservers(): void {
     this.mutationObserver?.disconnect();
     this.mutationObserver = null;
@@ -170,14 +204,17 @@ export class PageTranslator {
   private queueVisibleCandidates(): void {
     const root = this.getRoot();
     const deferredParents = new Set<Element>();
+    const useViewport = this.shouldCollectNearViewport(root);
 
     this.timing.start('collect_dom');
-    const collected = collectTextNodes(root, {
-      viewportMarginPx: VIEWPORT_MARGIN_PX,
-      onDeferSubtree: (element) => {
-        deferredParents.add(element);
-      },
-    });
+    const collected = collectTextNodes(root, useViewport
+      ? {
+        viewportMarginPx: VIEWPORT_MARGIN_PX,
+        onDeferSubtree: (element) => {
+          deferredParents.add(element);
+        },
+      }
+      : undefined);
     this.timing.end('collect_dom');
 
     let enqueued = false;
@@ -194,6 +231,10 @@ export class PageTranslator {
 
     if (enqueued) {
       this.requestFlush();
+    }
+
+    if (this.translationMode === 'bulk' && this.bulkInitialCollectPending) {
+      this.bulkInitialCollectPending = false;
     }
 
     this.intersectionObserver?.disconnect();
@@ -219,6 +260,13 @@ export class PageTranslator {
     });
   }
 
+  private shouldCollectNearViewport(root: Element): boolean {
+    if (this.translationMode === 'progressive') {
+      return !isListingFeedRoot(root);
+    }
+    return !this.bulkInitialCollectPending;
+  }
+
   private buildChunksFromPending(): TextChunk[] {
     this.timing.start('build_chunks');
     const nodes = Array.from(this.pendingNodes);
@@ -234,7 +282,8 @@ export class PageTranslator {
         continue;
       }
       const id = this.registry.register(node, original);
-      chunks.push({ id, text: original });
+      const sourceLang = resolveElementLang(node.parentElement);
+      chunks.push(sourceLang ? { id, text: original, sourceLang } : { id, text: original });
     }
     this.timing.end('build_chunks');
     return chunks;
@@ -242,29 +291,34 @@ export class PageTranslator {
 
   private enqueueBatches(unique: TextChunk[], expand: Map<string, string[]>): void {
     let rest = unique;
+    const incremental = this.translationMode === 'bulk' && !this.bulkInitialPackPending;
+    const pack = getBatchPackOptions(this.translationMode, { incremental });
+    const useFastLaneNow = pack.useFastLane && (incremental || !this.fastLaneDone);
 
-    if (!this.fastLaneDone) {
-      this.fastLaneDone = true;
-      const microBatches = packBatchesByBudget(
+    if (useFastLaneNow) {
+      if (!incremental) {
+        this.fastLaneDone = true;
+      }
+      const { fast, rest: remaining } = pickFastFirstBatch(
         unique,
         TRANSLATE_FAST_LANE_BATCH_SIZE,
         TRANSLATE_FAST_LANE_MAX_CHARS,
       );
-      const fastLane = microBatches.slice(0, TRANSLATE_FAST_LANE_PARALLEL);
-      const fastIds = new Set(fastLane.flat().map((item) => item.id));
-      rest = unique.filter((item) => !fastIds.has(item.id));
-      for (const batch of fastLane) {
-        this.batchQueue.push({ batch, expand });
+      rest = remaining;
+      if (fast.length > 0) {
+        this.batchQueue.unshift({ batch: fast, expand });
       }
+    } else if (!pack.useFastLane) {
+      this.fastLaneDone = true;
     }
 
-    const batches = packBatchesByBudget(
-      rest,
-      TRANSLATE_BATCH_SIZE,
-      TRANSLATE_BATCH_MAX_CHARS,
-    );
+    const batches = packBatchesByBudget(rest, pack.maxItems, pack.maxChars);
     for (const batch of batches) {
       this.batchQueue.push({ batch, expand });
+    }
+
+    if (this.translationMode === 'bulk' && this.bulkInitialPackPending) {
+      this.bulkInitialPackPending = false;
     }
   }
 
@@ -298,7 +352,11 @@ export class PageTranslator {
       return;
     }
 
-    while (this.inFlightCount < this.concurrency) {
+    const waitingForFirstPaint = this.translationMode === 'progressive'
+      && this.timing.getSummary().firstVisibleMs === null;
+    const workerLimit = waitingForFirstPaint ? 1 : this.concurrency;
+
+    while (this.inFlightCount < workerLimit) {
       if (this.batchQueue.length === 0) {
         this.refillBatchQueue();
       }
@@ -415,12 +473,15 @@ export class PageTranslator {
   }
 }
 
-export function formatStatusWithTiming(status: TabStatus): string {
-  const base = status.active
-    ? `Translating… (${status.translatedCount} nodes)`
-    : `Idle (${status.translatedCount} nodes)`;
-  if (!status.timing) {
-    return base;
+export function formatStatusText(status: TabStatus): string {
+  const cacheRate = formatCacheHitRate(status.cacheHits, status.cacheLookups);
+  const base = status.active ? 'Translating…' : 'Idle';
+  return cacheRate ? `${base}, cache ${cacheRate}` : base;
+}
+
+function formatCacheHitRate(hits?: number, lookups?: number): string | null {
+  if (typeof hits !== 'number' || typeof lookups !== 'number' || lookups <= 0) {
+    return null;
   }
-  return `${base} | ${formatTimingSummary(status.timing)}`;
+  return `${Math.round((hits / lookups) * 100)}%`;
 }

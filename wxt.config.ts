@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: 'Page Translate',
     description: 'Translate page content with configurable OpenAI-compatible models',
-    permissions: ['storage', 'activeTab', 'scripting', 'tabs', 'webNavigation'],
-    host_permissions: ['<all_urls>'],
+    permissions: ['storage', 'activeTab', 'scripting', 'tabs', 'webNavigation', 'contextMenus'],
+    host_permissions: ['<all_urls>', 'https://generativelanguage.googleapis.com/*'],
   },
 });

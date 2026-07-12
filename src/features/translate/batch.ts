@@ -1,5 +1,49 @@
 import type { TextChunk } from '@/features/translate/types';
 import { isLikelyDateText, normalizeCacheText } from '@/features/translate/text-normalize';
+import {
+  TRANSLATE_BATCH_MAX_CHARS,
+  TRANSLATE_BATCH_SIZE,
+  TRANSLATE_BULK_BATCH_MAX_CHARS,
+  TRANSLATE_BULK_BATCH_SIZE,
+  TRANSLATE_BULK_INCREMENTAL_BATCH_MAX_CHARS,
+  TRANSLATE_BULK_INCREMENTAL_BATCH_SIZE,
+} from '@/shared/constants';
+import type { TranslationMode } from '@/shared/translation-mode';
+
+export type BatchPackOptions = {
+  maxItems: number;
+  maxChars: number;
+  useFastLane: boolean;
+};
+
+export type BatchPackContext = {
+  incremental?: boolean;
+};
+
+export function getBatchPackOptions(
+  mode: TranslationMode,
+  context: BatchPackContext = {},
+): BatchPackOptions {
+  if (mode === 'bulk' && context.incremental) {
+    return {
+      maxItems: TRANSLATE_BULK_INCREMENTAL_BATCH_SIZE,
+      maxChars: TRANSLATE_BULK_INCREMENTAL_BATCH_MAX_CHARS,
+      useFastLane: true,
+    };
+  }
+  if (mode === 'bulk') {
+    return {
+      maxItems: TRANSLATE_BULK_BATCH_SIZE,
+      maxChars: TRANSLATE_BULK_BATCH_MAX_CHARS,
+      useFastLane: false,
+    };
+  }
+  return {
+    maxItems: TRANSLATE_BATCH_SIZE,
+    maxChars: TRANSLATE_BATCH_MAX_CHARS,
+    useFastLane: true,
+  };
+}
 
 export function createIdMap(texts: string[]): TextChunk[] {
   return texts.map((text, index) => ({
@@ -76,7 +120,11 @@ export function dedupeTextChunks(chunks: TextChunk[]): DedupeResult {
     const existingId = firstIdByText.get(normalized);
     if (!existingId) {
       firstIdByText.set(normalized, chunk.id);
-      unique.push({ id: chunk.id, text: normalized });
+      unique.push({
+        id: chunk.id,
+        text: normalized,
+        ...(chunk.sourceLang ? { sourceLang: chunk.sourceLang } : {}),
+      });
       expand.set(chunk.id, [chunk.id]);
       continue;
     }
@@ -161,6 +209,32 @@ export function splitFastFirstBatch(
     chars += chunk.text.length;
   }
 
+  if (fast.length === 0) {
+    return { fast: [chunks[0]], rest: chunks.slice(1) };
+  }
+
+  const fastIds = new Set(fast.map((chunk) => chunk.id));
+  const rest = chunks.filter((chunk) => !fastIds.has(chunk.id));
+  return { fast, rest };
+}
+
+const FAST_FIRST_CANDIDATE_WINDOW = 8;
+
+export function pickFastFirstBatch(
+  chunks: TextChunk[],
+  maxItems: number,
+  maxChars: number,
+): { fast: TextChunk[]; rest: TextChunk[] } {
+  if (chunks.length === 0) {
+    return { fast: [], rest: [] };
+  }
+
+  const windowSize = Math.min(chunks.length, Math.max(maxItems * 4, FAST_FIRST_CANDIDATE_WINDOW));
+  const candidates = chunks
+    .slice(0, windowSize)
+    .slice()
+    .sort((left, right) => left.text.length - right.text.length);
+  const { fast } = splitFastFirstBatch(candidates, maxItems, maxChars);
   if (fast.length === 0) {
     return { fast: [chunks[0]], rest: chunks.slice(1) };
   }

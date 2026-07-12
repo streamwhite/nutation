@@ -1,15 +1,23 @@
 import { MESSAGE_TYPES } from '@/shared/constants';
 import type { StageTimingSummary } from '@/features/translate/stage-timer';
+import type { ExtensionSettings } from '@/shared/settings';
 
 export type TextChunk = {
   id: string;
   text: string;
+  sourceLang?: string;
 };
 
 export type TranslateBatchRequest = {
   type: typeof MESSAGE_TYPES.TRANSLATE_BATCH;
   texts: TextChunk[];
   targetLang: string;
+  settings: ExtensionSettings;
+};
+
+export type WarmProviderRequest = {
+  type: typeof MESSAGE_TYPES.WARM_PROVIDER;
+  settings: ExtensionSettings;
 };
 
 export type TranslateBatchResponse = {
@@ -33,7 +41,6 @@ export type PersistTranslationsRequest = {
 export type StartTranslateRequest = {
   type: typeof MESSAGE_TYPES.START_TRANSLATE;
   targetLang?: string;
-  concurrency?: number;
 };
 
 export type StopTranslateRequest = {
@@ -48,6 +55,8 @@ export type TabStatus = {
   active: boolean;
   error: string | null;
   translatedCount: number;
+  cacheHits?: number;
+  cacheLookups?: number;
   timing?: StageTimingSummary;
 };
 
@@ -70,5 +79,6 @@ export type ContentScriptMessage =
 
 export type BackgroundMessage =
   | TranslateBatchRequest
+  | WarmProviderRequest
   | PersistTranslationsRequest
   | EnsureContentScriptRequest;

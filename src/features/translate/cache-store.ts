@@ -1,4 +1,5 @@
 import {
+  ESTIMATED_AVG_CACHE_ENTRY_BYTES,
   MEMORY_CACHE_MAX_ENTRIES,
   TRANSLATION_CACHE_DB_NAME,
   TRANSLATION_CACHE_MAX_ENTRIES,
@@ -9,6 +10,17 @@ type CacheRecord = {
   translation: string;
   usedAt: number;
 };
+
+export type CacheStoreStats = {
+  entryCount: number;
+  maxEntries: number;
+  estimatedBytes: number;
+  estimatedMaxBytes: number;
+  storageUsageBytes: number | null;
+  storageQuotaBytes: number | null;
+};
+
+const RECORD_OVERHEAD_BYTES = 24;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -144,4 +156,85 @@ export function trimMemoryCache(cache: Map<string, string>): void {
     }
     cache.delete(firstKey);
   }
+}
+
+function estimateEntryBytes(key: string, record: CacheRecord): number {
+  return (key.length + record.translation.length) * 2 + RECORD_OVERHEAD_BYTES;
+}
+
+async function estimateStoreBytes(store: IDBObjectStore): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let total = 0;
+    const request = store.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(total);
+        return;
+      }
+      const record = cursor.value as CacheRecord;
+      total += estimateEntryBytes(String(cursor.key), record);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error ?? new Error('Cache size estimate failed'));
+  });
+}
+
+async function readStorageEstimate(): Promise<{ usage: number; quota: number } | null> {
+  if (!navigator.storage?.estimate) {
+    return null;
+  }
+
+  try {
+    const estimate = await navigator.storage.estimate();
+    if (typeof estimate.usage !== 'number' || typeof estimate.quota !== 'number') {
+      return null;
+    }
+    return { usage: estimate.usage, quota: estimate.quota };
+  } catch {
+    return null;
+  }
+}
+
+export async function getCacheStoreStats(): Promise<CacheStoreStats> {
+  const estimatedMaxBytes = TRANSLATION_CACHE_MAX_ENTRIES * ESTIMATED_AVG_CACHE_ENTRY_BYTES;
+  const storage = await readStorageEstimate();
+
+  if (!isIndexedDbAvailable()) {
+    return {
+      entryCount: 0,
+      maxEntries: TRANSLATION_CACHE_MAX_ENTRIES,
+      estimatedBytes: 0,
+      estimatedMaxBytes,
+      storageUsageBytes: storage?.usage ?? null,
+      storageQuotaBytes: storage?.quota ?? null,
+    };
+  }
+
+  return withStore('readonly', async (store) => {
+    const entryCount = await countEntries(store);
+    const estimatedBytes = entryCount > 0 ? await estimateStoreBytes(store) : 0;
+    return {
+      entryCount,
+      maxEntries: TRANSLATION_CACHE_MAX_ENTRIES,
+      estimatedBytes,
+      estimatedMaxBytes,
+      storageUsageBytes: storage?.usage ?? null,
+      storageQuotaBytes: storage?.quota ?? null,
+    };
+  });
+}
+
+export async function clearStore(): Promise<void> {
+  if (!isIndexedDbAvailable()) {
+    return;
+  }
+
+  await withStore('readwrite', async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const request = store.clear();
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error ?? new Error('Cache clear failed'));
+    });
+  });
 }

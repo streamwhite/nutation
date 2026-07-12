@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { collectTextNodes } from '@/features/dom/collect-text';
 import { findCollectionRoot, findMainContentRoot, isChromeElement } from '@/features/dom/content-root';
 
 describe('isChromeElement', () => {
@@ -19,6 +20,37 @@ describe('isChromeElement', () => {
     expect(isChromeElement(document.getElementById('search'))).toBe(true);
     expect(isChromeElement(document.getElementById('ok'))).toBe(false);
   });
+
+  it('does not treat article headline headers as chrome', () => {
+    document.body.innerHTML = `
+      <main>
+        <article>
+          <header data-testid="headline" id="article-header">
+            <h1 id="main-heading">Match headline</h1>
+          </header>
+        </article>
+      </main>
+    `;
+
+    expect(isChromeElement(document.getElementById('article-header'))).toBe(false);
+    expect(isChromeElement(document.getElementById('main-heading'))).toBe(false);
+  });
+
+  it('keeps site nav header chrome while allowing page headlines', () => {
+    document.body.innerHTML = `
+      <header id="site-header">
+        <h1>Site Logo</h1>
+        <nav id="site-nav">Menu</nav>
+      </header>
+      <div id="page">
+        <h1 class="Page-headline" id="page-headline">Article headline</h1>
+      </div>
+    `;
+
+    expect(isChromeElement(document.getElementById('site-nav'))).toBe(true);
+    expect(isChromeElement(document.getElementById('site-header'))).toBe(true);
+    expect(isChromeElement(document.getElementById('page-headline'))).toBe(false);
+  });
 });
 
 describe('findMainContentRoot', () => {
@@ -33,7 +65,7 @@ describe('findMainContentRoot', () => {
     expect(root.id).toBe('main');
   });
 
-  it('falls back to role=main then article', () => {
+  it('falls back to role=main then body', () => {
     document.body.innerHTML = `
       <div role="main" id="role-main"><p>${'Primary content '.repeat(20)}</p></div>
       <aside>Sidebar</aside>
@@ -45,10 +77,10 @@ describe('findMainContentRoot', () => {
       <article id="post"><p>${'Blog post content '.repeat(20)}</p></article>
       <footer>End</footer>
     `;
-    expect(findMainContentRoot(document).id).toBe('post');
+    expect(findMainContentRoot(document)).toBe(document.body);
   });
 
-  it('uses body when no main content landmark exists', () => {
+  it('uses body when no main landmark exists', () => {
     document.body.innerHTML = '<div id="wrap"><p>Short</p></div>';
     const root = findMainContentRoot(document);
     expect(root).toBe(document.body);
@@ -56,37 +88,41 @@ describe('findMainContentRoot', () => {
 });
 
 describe('findCollectionRoot', () => {
-  it('widens to body when a flourish embed sits outside the article', () => {
+  it('uses main when present and body otherwise', () => {
     document.body.innerHTML = `
-      <article id="post"><p>${'Article body text '.repeat(20)}</p></article>
-      <section id="fl-layout-primary-container" class="fl-layout-container">
-        <div id="cards-inner">
-          <div role="article" class="card-wrapper" id="card-0">
-            <h3>Maliha, 11 months</h3>
-            <p>Maliha died on 12 April.</p>
-          </div>
-          <div role="article" class="card-wrapper" id="card-1">
-            <h3>Akira Haidar, 4 years</h3>
-            <p>Akira died on 2 April.</p>
-          </div>
-        </div>
+      <nav id="site-nav">Site menu</nav>
+      <main id="main">
+        <h2>Story one headline</h2>
+        <p>${'Summary one '.repeat(8)}</p>
+        <h2>Story two headline</h2>
+        <p>${'Summary two '.repeat(8)}</p>
+      </main>
+    `;
+
+    const root = findCollectionRoot(document);
+    const texts = collectTextNodes(root).map((item) => item.text.trim());
+
+    expect(root.id).toBe('main');
+    expect(texts).toContain('Story one headline');
+    expect(texts).not.toContain('Site menu');
+  });
+
+  it('falls back to body so content outside article tags is collected', () => {
+    document.body.innerHTML = `
+      <nav id="site-nav">Site menu</nav>
+      <section id="stream">
+        <h2>Story one headline</h2>
+        <p>${'Summary one '.repeat(8)}</p>
+        <h2>Story two headline</h2>
+        <p>${'Summary two '.repeat(8)}</p>
       </section>
     `;
 
-    expect(findMainContentRoot(document).id).toBe('post');
-    expect(findCollectionRoot(document)).toBe(document.body);
-  });
+    const root = findCollectionRoot(document);
+    const texts = collectTextNodes(root).map((item) => item.text.trim());
 
-  it('keeps the article root when the embed is inside it', () => {
-    document.body.innerHTML = `
-      <article id="post">
-        <p>${'Article body text '.repeat(20)}</p>
-        <section id="fl-layout-primary-container" class="fl-layout-container">
-          <p>Embedded card copy</p>
-        </section>
-      </article>
-    `;
-
-    expect(findCollectionRoot(document).id).toBe('post');
+    expect(root).toBe(document.body);
+    expect(texts).toContain('Story one headline');
+    expect(texts).not.toContain('Site menu');
   });
 });

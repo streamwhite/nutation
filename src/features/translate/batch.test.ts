@@ -5,10 +5,20 @@ import {
   createIdMap,
   dedupeTextChunks,
   expandTranslations,
+  getBatchPackOptions,
   packBatchesByBudget,
+  pickFastFirstBatch,
   shouldTranslateText,
   splitFastFirstBatch,
 } from '@/features/translate/batch';
+import {
+  TRANSLATE_BATCH_MAX_CHARS,
+  TRANSLATE_BATCH_SIZE,
+  TRANSLATE_BULK_BATCH_MAX_CHARS,
+  TRANSLATE_BULK_BATCH_SIZE,
+  TRANSLATE_BULK_INCREMENTAL_BATCH_MAX_CHARS,
+  TRANSLATE_BULK_INCREMENTAL_BATCH_SIZE,
+} from '@/shared/constants';
 
 describe('createIdMap', () => {
   it('maps texts to stable index ids', () => {
@@ -99,6 +109,20 @@ describe('splitFastFirstBatch', () => {
   });
 });
 
+describe('pickFastFirstBatch', () => {
+  it('prefers the shortest early text for first paint', () => {
+    const chunks = [
+      { id: '0', text: 'A long headline that should wait for later batches' },
+      { id: '1', text: 'Short' },
+      { id: '2', text: 'Another long paragraph for the article body' },
+    ];
+
+    const { fast, rest } = pickFastFirstBatch(chunks, 1, 120);
+    expect(fast).toEqual([{ id: '1', text: 'Short' }]);
+    expect(rest.map((item) => item.id)).toEqual(['0', '2']);
+  });
+});
+
 describe('packBatchesByBudget', () => {
   it('packs by item and character budget', () => {
     const chunks = [
@@ -129,5 +153,44 @@ describe('packBatchesByBudget', () => {
         { id: '3', text: 'dddd' },
       ],
     ]);
+  });
+});
+
+describe('getBatchPackOptions', () => {
+  it('uses one large batch budget for bulk mode', () => {
+    const options = getBatchPackOptions('bulk');
+    expect(options.useFastLane).toBe(false);
+    expect(options.maxItems).toBe(TRANSLATE_BULK_BATCH_SIZE);
+    expect(options.maxChars).toBe(TRANSLATE_BULK_BATCH_MAX_CHARS);
+
+    const chunks = Array.from({ length: 40 }, (_, index) => ({
+      id: String(index),
+      text: `line ${index} `.repeat(10).trim(),
+    }));
+    const bulkBatches = packBatchesByBudget(chunks, options.maxItems, options.maxChars);
+    const progressive = getBatchPackOptions('progressive');
+    const progressiveBatches = packBatchesByBudget(
+      chunks,
+      progressive.maxItems,
+      progressive.maxChars,
+    );
+    expect(bulkBatches.length).toBeLessThan(progressiveBatches.length);
+    expect(bulkBatches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('keeps progressive small-batch budgets', () => {
+    const options = getBatchPackOptions('progressive');
+    expect(options.useFastLane).toBe(true);
+    expect(options.maxItems).toBe(TRANSLATE_BATCH_SIZE);
+    expect(options.maxChars).toBe(TRANSLATE_BATCH_MAX_CHARS);
+  });
+
+  it('uses smaller fast packs for bulk incremental scroll content', () => {
+    const options = getBatchPackOptions('bulk', { incremental: true });
+    expect(options.useFastLane).toBe(true);
+    expect(options.maxItems).toBe(TRANSLATE_BULK_INCREMENTAL_BATCH_SIZE);
+    expect(options.maxChars).toBe(TRANSLATE_BULK_INCREMENTAL_BATCH_MAX_CHARS);
+    expect(options.maxItems).toBeLessThan(TRANSLATE_BULK_BATCH_SIZE);
+    expect(options.maxChars).toBeLessThan(TRANSLATE_BULK_BATCH_MAX_CHARS);
   });
 });

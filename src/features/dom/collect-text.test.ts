@@ -69,6 +69,36 @@ describe('collectTextNodes', () => {
     expect(texts).not.toContain('Skip footer');
   });
 
+  it('translates article headline headers like BBC main-heading', () => {
+    const headline = "I've changed my mind, we might actually be able to win this thing - Shearer";
+    document.body.innerHTML = `
+      <header id="site-header">BBC Sport</header>
+      <main id="main-content">
+        <article>
+          <div>
+            <div data-block="headline" class="ssrcss-l7emlr-ComponentWrapper e1aon0op1">
+              <div class="ssrcss-usmnse-Spacer e1aon0op0">
+                <header data-testid="headline">
+                  <h1 id="main-heading" type="headline" tabindex="-1"
+                    class="ssrcss-8zqj65-Heading e10rt3ze0">
+                    <span role="text">${headline}</span>
+                  </h1>
+                </header>
+              </div>
+            </div>
+            <p>Article body paragraph</p>
+          </div>
+        </article>
+      </main>
+    `;
+
+    const root = findCollectionRoot(document);
+    const texts = collectTextNodes(root).map((item) => item.text.trim());
+    expect(texts).toContain(headline);
+    expect(texts).toContain('Article body paragraph');
+    expect(texts).not.toContain('BBC Sport');
+  });
+
   it('skips author date share and breadcrumb metadata', () => {
     document.body.innerHTML = `
       <article>
@@ -546,6 +576,27 @@ describe('collectTextNodes', () => {
     expect(texts).toContain('Maliha died on 12 April.');
     expect(texts).toContain('Akira Haidar, 4 years');
     expect(texts).toContain('Akira died on 2 April.');
+  });
+
+  it('skips hidden alternate view containers like ars technica grid mode', () => {
+    document.body.innerHTML = `
+      <div class="listing-latest" id="feed">
+        <div class="grid-view" style="display: none;">
+          <article><h2>Hidden headline</h2><p>Hidden summary</p></article>
+        </div>
+        <div class="list-view">
+          <article><h2>Visible headline</h2><p>Visible summary text</p></article>
+        </div>
+      </div>
+    `;
+
+    const texts = collectTextNodes(document.getElementById('feed')!)
+      .map((item) => item.text.trim());
+
+    expect(texts).toContain('Visible headline');
+    expect(texts).toContain('Visible summary text');
+    expect(texts).not.toContain('Hidden headline');
+    expect(texts).not.toContain('Hidden summary');
   });
 
   it('collects text rendered inside shadow roots', () => {

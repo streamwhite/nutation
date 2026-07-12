@@ -33,8 +33,8 @@ describe('saveSettings', () => {
       apiKey: 'secret',
       model: 'deepseek/deepseek-v4-flash',
       targetLang: 'zh-CN',
-      concurrency: 3,
       autoRecoverContentScript: true,
+      translationMode: 'bulk',
     });
 
     expect(saved.baseUrl).toBe('https://openrouter.ai/api/v1');
@@ -42,6 +42,48 @@ describe('saveSettings', () => {
     expect(storage.get(STORAGE_KEYS.SETTINGS)).toMatchObject({
       provider: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1',
+    });
+  });
+});
+
+describe('loadSettings model normalization', () => {
+  beforeEach(() => {
+    storage.clear();
+  });
+
+  it('persists stripped models/ prefix back to storage', async () => {
+    storage.set(STORAGE_KEYS.SETTINGS, {
+      provider: 'gemini',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      apiKey: 'secret',
+      model: 'models/gemini-2.5-flash-lite',
+      targetLang: 'zh-CN',
+    });
+
+    const { loadSettings } = await import('@/shared/settings');
+    const loaded = await loadSettings();
+
+    expect(loaded.model).toBe('gemini-2.5-flash-lite');
+    expect(storage.get(STORAGE_KEYS.SETTINGS)).toMatchObject({
+      model: 'gemini-2.5-flash-lite',
+    });
+  });
+
+  it('rewrites stored gemini-3.1-flash-lite to gemini-2.5-flash-lite', async () => {
+    storage.set(STORAGE_KEYS.SETTINGS, {
+      provider: 'gemini',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      apiKey: 'secret',
+      model: 'gemini-3.1-flash-lite',
+      targetLang: 'zh-CN',
+    });
+
+    const { loadSettings } = await import('@/shared/settings');
+    const loaded = await loadSettings();
+
+    expect(loaded.model).toBe('gemini-2.5-flash-lite');
+    expect(storage.get(STORAGE_KEYS.SETTINGS)).toMatchObject({
+      model: 'gemini-2.5-flash-lite',
     });
   });
 });
@@ -55,11 +97,10 @@ describe('parseSettings provider persistence', () => {
       model: 'my-model',
       apiKey: 'key',
       targetLang: 'en',
-      concurrency: 2,
     });
 
     expect(parsed.provider).toBe('custom');
-    expect(parsed.baseUrl).toBe('https://my-proxy.example/v1');
+    expect(parsed.baseUrl).toBe('https://my-proxy.example/v1/chat/completions');
     expect(parsed.model).toBe('my-model');
   });
 });

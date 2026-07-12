@@ -17,10 +17,13 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "bootstrap": "^5.3.7"
+    "bootstrap": "^5.3.7",
+    "fuse.js": "^7.4.2",
+    "opencc-js": "^1.4.0"
   },
   "devDependencies": {
     "@types/bootstrap": "^5.2.10",
+    "fake-indexeddb": "^6.2.5",
     "happy-dom": "^18.0.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   getRetryDelayMs,
+  isRetryableError,
   isRetryableHttpStatus,
   withRetries,
 } from '@/features/llm/retry';
@@ -18,6 +19,13 @@ describe('getRetryDelayMs', () => {
     expect(getRetryDelayMs(0, 500)).toBe(500);
     expect(getRetryDelayMs(1, 500)).toBe(1000);
     expect(getRetryDelayMs(2, 500)).toBe(2000);
+  });
+});
+
+describe('isRetryableError', () => {
+  it('treats network failures as retryable', () => {
+    expect(isRetryableError(new Error('Unable to make request: TypeError: Failed to fetch')))
+      .toBe(true);
   });
 });
 

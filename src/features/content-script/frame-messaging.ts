@@ -80,6 +80,8 @@ export function mergeTabStatuses(statuses: TabStatus[]): TabStatus {
     active: false,
     error: null,
     translatedCount: 0,
+    cacheHits: 0,
+    cacheLookups: 0,
   };
 
   for (const status of statuses) {
@@ -87,6 +89,8 @@ export function mergeTabStatuses(statuses: TabStatus[]): TabStatus {
       active: merged.active || status.active,
       error: merged.error ?? status.error,
       translatedCount: merged.translatedCount + status.translatedCount,
+      cacheHits: (merged.cacheHits ?? 0) + (status.cacheHits ?? 0),
+      cacheLookups: (merged.cacheLookups ?? 0) + (status.cacheLookups ?? 0),
       timing: mergeStageTiming(merged.timing, status.timing),
     };
   }

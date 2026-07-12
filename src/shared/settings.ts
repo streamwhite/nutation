@@ -1,12 +1,19 @@
 import { browser } from 'wxt/browser';
-import { STORAGE_KEYS, TRANSLATE_CONCURRENCY } from '@/shared/constants';
-import { normalizeApiBaseUrl } from '@/features/llm/api-url';
+import { STORAGE_KEYS } from '@/shared/constants';
+import { normalizeApiBaseUrl, normalizeCustomChatCompletionsUrl } from '@/features/llm/api-url';
+import { resolveTargetLanguageCode } from '@/shared/languages';
 import {
   getProviderPreset,
   inferProviderFromBaseUrl,
   isProviderId,
+  normalizeModelName,
+  resolveProviderBaseUrl,
   type ProviderId,
 } from '@/shared/providers';
+import {
+  resolveTranslationMode,
+  type TranslationMode,
+} from '@/shared/translation-mode';
 
 export type ExtensionSettings = {
   provider: ProviderId;
@@ -14,8 +21,8 @@ export type ExtensionSettings = {
   apiKey: string;
   model: string;
   targetLang: string;
-  concurrency: number;
   autoRecoverContentScript: boolean;
+  translationMode: TranslationMode;
 };
 
 export function getDefaultSettings(): ExtensionSettings {
@@ -30,8 +37,8 @@ export function getDefaultSettings(): ExtensionSettings {
     apiKey: '',
     model: import.meta.env.VITE_DEFAULT_MODEL || preset.defaultModel,
     targetLang: import.meta.env.VITE_DEFAULT_TARGET_LANG || 'zh-CN',
-    concurrency: TRANSLATE_CONCURRENCY,
     autoRecoverContentScript: true,
+    translationMode: resolveTranslationMode(import.meta.env.VITE_DEFAULT_TRANSLATION_MODE),
   };
 }
 
@@ -42,27 +49,31 @@ export function parseSettings(raw: unknown): ExtensionSettings {
   }
 
   const value = raw as Partial<ExtensionSettings>;
-  const concurrency = Number(value.concurrency);
-  const baseUrl = typeof value.baseUrl === 'string' && value.baseUrl.trim()
-    ? normalizeApiBaseUrl(value.baseUrl)
+  const rawBaseUrl = typeof value.baseUrl === 'string' ? value.baseUrl : '';
+  const inferredBaseUrl = rawBaseUrl.trim()
+    ? normalizeApiBaseUrl(rawBaseUrl)
     : defaults.baseUrl;
 
+  const provider = isProviderId(value.provider)
+    ? value.provider
+    : inferProviderFromBaseUrl(inferredBaseUrl);
+  const baseUrl = provider === 'custom'
+    ? (rawBaseUrl.trim() ? normalizeCustomChatCompletionsUrl(rawBaseUrl) : '')
+    : resolveProviderBaseUrl(provider);
+  const rawModel = typeof value.model === 'string' && value.model.trim()
+    ? value.model.trim()
+    : defaults.model;
+
   return {
-    provider: isProviderId(value.provider)
-      ? value.provider
-      : inferProviderFromBaseUrl(baseUrl),
+    provider,
     baseUrl,
     apiKey: typeof value.apiKey === 'string' ? value.apiKey : defaults.apiKey,
-    model: typeof value.model === 'string' && value.model.trim()
-      ? value.model.trim()
-      : defaults.model,
+    model: normalizeModelName(provider, rawModel),
     targetLang: typeof value.targetLang === 'string' && value.targetLang.trim()
-      ? value.targetLang.trim()
+      ? resolveTargetLanguageCode(value.targetLang, defaults.targetLang)
       : defaults.targetLang,
-    concurrency: Number.isFinite(concurrency) && concurrency > 0
-      ? Math.floor(concurrency)
-      : defaults.concurrency,
     autoRecoverContentScript: value.autoRecoverContentScript !== false,
+    translationMode: resolveTranslationMode(value.translationMode),
   };
 }
 
@@ -83,9 +94,31 @@ export function applyProviderPreset(
   };
 }
 
+function shouldPersistMigratedSettings(
+  raw: unknown,
+  parsed: ExtensionSettings,
+): boolean {
+  if (!raw || typeof raw !== 'object') {
+    return false;
+  }
+  const storedModel = (raw as Partial<ExtensionSettings>).model;
+  return typeof storedModel === 'string'
+    && storedModel.trim() !== ''
+    && storedModel.trim() !== parsed.model;
+}
+
 export async function loadSettings(): Promise<ExtensionSettings> {
   const result = await browser.storage.local.get(STORAGE_KEYS.SETTINGS);
-  return parseSettings(result[STORAGE_KEYS.SETTINGS]);
+  const raw = result[STORAGE_KEYS.SETTINGS];
+  const parsed = parseSettings(raw);
+
+  if (shouldPersistMigratedSettings(raw, parsed)) {
+    await browser.storage.local.set({
+      [STORAGE_KEYS.SETTINGS]: parsed,
+    });
+  }
+
+  return parsed;
 }
 
 export async function saveSettings(settings: ExtensionSettings): Promise<ExtensionSettings> {

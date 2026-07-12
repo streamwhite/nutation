@@ -1,5 +1,6 @@
 import { buildCacheKey } from '@/features/translate/cache-key';
 import {
+  clearStore,
   getManyFromStore,
   setManyInStore,
   trimMemoryCache,
@@ -131,8 +132,9 @@ export function setCachedTranslations(
   });
 }
 
-export function clearTranslationCache(): void {
+export async function clearTranslationCache(): Promise<void> {
   memoryCache.clear();
   pendingWrites.clear();
   hydrated = false;
+  await clearStore();
 }

@@ -1,6 +1,7 @@
 import { SKIP_TAG_NAMES } from '@/shared/constants';
 import { isChromeElement } from '@/features/dom/content-root';
 import { isNonReadableChrome } from '@/features/dom/skip-zones';
+import { isVisuallyHidden } from '@/features/dom/visibility';
 import {
   isAboveViewport,
   isBelowViewport,
@@ -33,6 +34,10 @@ export function shouldSkipElement(element: Element | null): boolean {
   }
 
   if (isChromeElement(element) || isNonReadableChrome(element)) {
+    return true;
+  }
+
+  if (isVisuallyHidden(element)) {
     return true;
   }
 

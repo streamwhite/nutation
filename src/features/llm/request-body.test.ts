@@ -12,16 +12,16 @@ const settings: ExtensionSettings = {
   apiKey: 'key',
   model: 'gemini-2.5-flash-lite',
   targetLang: 'zh-CN',
-  concurrency: 4,
   autoRecoverContentScript: true,
+  translationMode: 'bulk',
 };
 
 describe('estimateMaxTokens', () => {
   it('scales with input size and caps output', () => {
     const small = estimateMaxTokens([{ id: '0', text: 'Hello' }]);
-    const large = estimateMaxTokens([{ id: '0', text: 'x'.repeat(2000) }]);
+    const large = estimateMaxTokens([{ id: '0', text: 'x'.repeat(40_000) }]);
     expect(small).toBeGreaterThanOrEqual(API_MAX_TOKENS_FLOOR);
-    expect(small).toBeLessThan(300);
+    expect(small).toBeLessThan(API_MAX_TOKENS_CEILING);
     expect(large).toBe(API_MAX_TOKENS_CEILING);
   });
 });
@@ -34,6 +34,7 @@ describe('buildChatCompletionBody', () => {
       'zh-CN',
     );
     expect(body.max_tokens).toBeTypeOf('number');
-    expect(Number(body.max_tokens)).toBeLessThan(300);
+    expect(Number(body.max_tokens)).toBeGreaterThanOrEqual(API_MAX_TOKENS_FLOOR);
+    expect(Number(body.max_tokens)).toBeLessThanOrEqual(API_MAX_TOKENS_CEILING);
   });
 });

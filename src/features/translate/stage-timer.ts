@@ -134,6 +134,7 @@ export function formatTimingSummary(summary: StageTimingSummary): string {
     'collect_dom',
     'build_chunks',
     'cache_hit',
+    'opencc_convert',
     'api_request',
     'apply_dom',
   ];

@@ -11,16 +11,29 @@ import {
 } from '@/shared/constants';
 import { getContentScriptFiles } from '@/features/content-script/manifest-scripts';
 
-const RESTRICTED_URL_PATTERN = /^(chrome|chrome-extension|edge|about|devtools|view-source):/i;
-const CONNECTION_ERROR_PATTERN = /receiving end does not exist|could not establish connection/i;
+const RESTRICTED_URL_PATTERN = /^(chrome|chrome-extension|edge|about|devtools|view-source|moz-extension):/i;
+const CONNECTION_ERROR_PATTERN = /receiving end does not exist|could not establish connection|no content script frames responded/i;
+const DUPLICATE_SCRIPT_PATTERN = /duplicate script id/i;
+const RESTRICTED_PAGE_MESSAGE = 'This page cannot be translated (browser internal page). Open a normal website tab.';
+
+let registerPromise: Promise<void> | null = null;
 
 export function isConnectionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return CONNECTION_ERROR_PATTERN.test(message);
 }
 
+export function isDuplicateScriptError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return DUPLICATE_SCRIPT_PATTERN.test(message);
+}
+
 export function isRestrictedUrl(url: string): boolean {
   return RESTRICTED_URL_PATTERN.test(url);
+}
+
+export function getRestrictedPageMessage(): string {
+  return RESTRICTED_PAGE_MESSAGE;
 }
 
 async function delay(ms: number): Promise<void> {
@@ -101,27 +114,47 @@ export type RecoverContentScriptResult = {
   error?: string;
 };
 
+async function hasRegisteredContentScript(): Promise<boolean> {
+  const registered = await browser.scripting.getRegisteredContentScripts({
+    ids: [CONTENT_SCRIPT_REGISTRATION_ID],
+  });
+  return registered.length > 0;
+}
+
+async function registerContentScript(): Promise<void> {
+  if (await hasRegisteredContentScript()) {
+    return;
+  }
+
+  try {
+    await browser.scripting.registerContentScripts([{
+      id: CONTENT_SCRIPT_REGISTRATION_ID,
+      js: [CONTENT_SCRIPT_FILE],
+      matches: ['<all_urls>'],
+      runAt: 'document_idle',
+      allFrames: true,
+    }]);
+  } catch (error) {
+    if (isDuplicateScriptError(error) || await hasRegisteredContentScript()) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export async function registerContentScriptIfNeeded(): Promise<void> {
   const manifest = browser.runtime.getManifest();
   if ((manifest.content_scripts ?? []).length > 0) {
     return;
   }
 
-  try {
-    await browser.scripting.unregisterContentScripts({
-      ids: [CONTENT_SCRIPT_REGISTRATION_ID],
+  if (!registerPromise) {
+    registerPromise = registerContentScript().finally(() => {
+      registerPromise = null;
     });
-  } catch {
-    // First install.
   }
 
-  await browser.scripting.registerContentScripts([{
-    id: CONTENT_SCRIPT_REGISTRATION_ID,
-    js: [CONTENT_SCRIPT_FILE],
-    matches: ['<all_urls>'],
-    runAt: 'document_idle',
-    allFrames: true,
-  }]);
+  await registerPromise;
 }
 
 export async function recoverContentScript(tabId: number): Promise<RecoverContentScriptResult> {
@@ -135,7 +168,7 @@ export async function recoverContentScript(tabId: number): Promise<RecoverConten
     return {
       ok: false,
       recovered: false,
-      error: 'This page cannot run content scripts. Open a normal website tab.',
+      error: getRestrictedPageMessage(),
     };
   }
 
