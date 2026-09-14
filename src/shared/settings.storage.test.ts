@@ -35,6 +35,7 @@ describe('saveSettings', () => {
       targetLang: 'zh-CN',
       autoRecoverContentScript: true,
       translationMode: 'bulk',
+      summaryPosition: 'right',
     });
 
     expect(saved.baseUrl).toBe('https://openrouter.ai/api/v1');

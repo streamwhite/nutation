@@ -84,6 +84,13 @@ describe('parseSettings', () => {
   it('accepts progressive translation mode', () => {
     expect(parseSettings({ translationMode: 'progressive' }).translationMode).toBe('progressive');
   });
+
+  it('defaults summary position to right', () => {
+    expect(getDefaultSettings().summaryPosition).toBe('right');
+    expect(parseSettings({}).summaryPosition).toBe('right');
+    expect(parseSettings({ summaryPosition: 'left' }).summaryPosition).toBe('left');
+    expect(parseSettings({ summaryPosition: 'top' }).summaryPosition).toBe('right');
+  });
 });
 
 describe('applyProviderPreset', () => {

@@ -29,6 +29,11 @@ import {
   TRANSLATION_MODE_NOTES,
   type TranslationMode,
 } from '@/shared/translation-mode';
+import {
+  SUMMARY_POSITIONS,
+  SUMMARY_POSITION_LABELS,
+  type SummaryPosition,
+} from '@/features/summarize/summary-position';
 
 const form = document.querySelector<HTMLFormElement>('#settings-form');
 const providerSelect = document.querySelector<HTMLSelectElement>('#provider');
@@ -41,6 +46,7 @@ const targetLangSearch = document.querySelector<HTMLInputElement>('#target-lang-
 const targetLangResults = document.querySelector<HTMLElement>('#target-lang-results');
 const translationModeSelect = document.querySelector<HTMLSelectElement>('#translation-mode');
 const translationModeHelp = document.querySelector<HTMLElement>('#translation-mode-help');
+const summaryPositionSelect = document.querySelector<HTMLSelectElement>('#summary-position');
 const autoRecoverInput = document.querySelector<HTMLInputElement>('#auto-recover');
 const saveBtn = form?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null;
 const saveAlert = document.querySelector<HTMLElement>('#save-alert');
@@ -198,7 +204,8 @@ function ensureLanguagePicker(initialCode: string): void {
 
 function fillForm(settings: ExtensionSettings): void {
   if (!providerSelect || !apiKeyInput || !modelInput
-    || !targetLangInput || !translationModeSelect || !autoRecoverInput) {
+    || !targetLangInput || !translationModeSelect || !autoRecoverInput
+    || !summaryPositionSelect) {
     return;
   }
 
@@ -211,13 +218,15 @@ function fillForm(settings: ExtensionSettings): void {
   ensureLanguagePicker(settings.targetLang);
   translationModeSelect.value = settings.translationMode;
   updateTranslationModeHelp(settings.translationMode);
+  summaryPositionSelect.value = settings.summaryPosition;
   autoRecoverInput.checked = settings.autoRecoverContentScript;
   applyProviderUi(settings.provider);
 }
 
 function readForm(): ExtensionSettings {
   if (!providerSelect || !apiKeyInput || !modelInput
-    || !targetLangInput || !translationModeSelect || !autoRecoverInput) {
+    || !targetLangInput || !translationModeSelect || !autoRecoverInput
+    || !summaryPositionSelect) {
     throw new Error('Settings form is missing required fields.');
   }
 
@@ -240,6 +249,7 @@ function readForm(): ExtensionSettings {
     targetLang,
     translationMode: translationModeSelect.value as TranslationMode,
     autoRecoverContentScript: autoRecoverInput.checked,
+    summaryPosition: summaryPositionSelect.value as SummaryPosition,
   };
 }
 
@@ -285,7 +295,7 @@ function populateProviderSelect(): void {
 }
 
 function init(): void {
-  if (!form || !providerSelect || !translationModeSelect) {
+  if (!form || !providerSelect || !translationModeSelect || !summaryPositionSelect) {
     setSaveError('Settings page failed to initialize. Reload the extension and open Options again.');
     return;
   }
@@ -315,6 +325,13 @@ function init(): void {
     option.value = mode;
     option.textContent = TRANSLATION_MODE_LABELS[mode];
     translationModeSelect.append(option);
+  }
+
+  for (const position of SUMMARY_POSITIONS) {
+    const option = document.createElement('option');
+    option.value = position;
+    option.textContent = SUMMARY_POSITION_LABELS[position];
+    summaryPositionSelect.append(option);
   }
 
   translationModeSelect.addEventListener('change', () => {

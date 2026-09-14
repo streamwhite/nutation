@@ -14,6 +14,10 @@ import {
   resolveTranslationMode,
   type TranslationMode,
 } from '@/shared/translation-mode';
+import {
+  resolveSummaryPosition,
+  type SummaryPosition,
+} from '@/features/summarize/summary-position';
 
 export type ExtensionSettings = {
   provider: ProviderId;
@@ -23,6 +27,7 @@ export type ExtensionSettings = {
   targetLang: string;
   autoRecoverContentScript: boolean;
   translationMode: TranslationMode;
+  summaryPosition: SummaryPosition;
 };
 
 export function getDefaultSettings(): ExtensionSettings {
@@ -39,6 +44,9 @@ export function getDefaultSettings(): ExtensionSettings {
     targetLang: import.meta.env.VITE_DEFAULT_TARGET_LANG || 'zh-CN',
     autoRecoverContentScript: true,
     translationMode: resolveTranslationMode(import.meta.env.VITE_DEFAULT_TRANSLATION_MODE),
+    summaryPosition: resolveSummaryPosition(
+      import.meta.env.VITE_DEFAULT_SUMMARY_POSITION,
+    ),
   };
 }
 
@@ -74,6 +82,9 @@ export function parseSettings(raw: unknown): ExtensionSettings {
       : defaults.targetLang,
     autoRecoverContentScript: value.autoRecoverContentScript !== false,
     translationMode: resolveTranslationMode(value.translationMode),
+    summaryPosition: resolveSummaryPosition(
+      value.summaryPosition ?? defaults.summaryPosition,
+    ),
   };
 }
 
