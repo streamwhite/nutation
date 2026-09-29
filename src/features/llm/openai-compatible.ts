@@ -8,7 +8,7 @@ import { parseTranslationContent } from '@/features/llm/translation-content';
 import type { TextChunk } from '@/features/translate/types';
 import { RETRYABLE_HTTP_STATUSES } from '@/shared/constants';
 import { API_KEY_MISSING_MESSAGE } from '@/shared/api-key';
-import { buildRequestHeaders } from '@/shared/providers';
+import { buildRequestHeaders, resolveRequestModel } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
 export { estimateMaxTokens } from '@/features/llm/request-body';
@@ -41,7 +41,7 @@ async function requestOpenAiBatch(
   const payload = await response.json() as ChatCompletionResponse;
   if (!response.ok) {
     const detail = extractApiErrorMessage(payload, response.status);
-    const message = `${detail} (model: ${settings.model}, endpoint: ${endpoint})`;
+    const message = `${detail} (model: ${resolveRequestModel(settings)}, endpoint: ${endpoint})`;
     const retryable = RETRYABLE_HTTP_STATUSES.includes(
       response.status as typeof RETRYABLE_HTTP_STATUSES[number],
     );

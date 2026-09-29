@@ -3,7 +3,6 @@ import {
   buildRequestHeaders,
   normalizeGeminiModel,
   normalizeModelName,
-  toGeminiInteractionModelId,
 } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
@@ -15,21 +14,22 @@ const baseSettings: ExtensionSettings = {
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
   translationMode: 'bulk',
+  translateOnOpen: true,
+  translateOnOpenRules: [],
+  summaryPosition: 'right',
+  cacheMaxEntries: 1_000_000,
+  copyIncludeLink: true,
 };
 
 describe('normalizeGeminiModel', () => {
-  it('strips models/ prefix and maps 3.1 flash-lite back to 2.5 default', () => {
+  it('strips models/ and google/ prefixes without remapping model ids', () => {
     expect(normalizeGeminiModel('gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
     expect(normalizeGeminiModel('models/gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
     expect(normalizeGeminiModel('models/models/gemini-2.5-flash')).toBe('gemini-2.5-flash');
     expect(normalizeGeminiModel('gemini-2.5-flash')).toBe('gemini-2.5-flash');
-    expect(normalizeGeminiModel('gemini-3.1-flash-lite')).toBe('gemini-2.5-flash-lite');
-  });
-});
-
-describe('toGeminiInteractionModelId', () => {
-  it('never keeps a models/ prefix for interactions', () => {
-    expect(toGeminiInteractionModelId('models/gemini-2.5-flash-lite')).toBe('gemini-2.5-flash-lite');
+    expect(normalizeGeminiModel('gemini-3.1-flash-lite')).toBe('gemini-3.1-flash-lite');
+    expect(normalizeGeminiModel('models/gemini-2.5-pro')).toBe('gemini-2.5-pro');
+    expect(normalizeGeminiModel('google/models/gemini-2.5-pro')).toBe('gemini-2.5-pro');
   });
 });
 
@@ -38,6 +38,25 @@ describe('normalizeModelName', () => {
     expect(normalizeModelName('openrouter', 'gemini-2.5-flash-lite'))
       .toBe('google/gemini-2.5-flash-lite');
     expect(normalizeModelName('gemini', 'gemini-2.5-flash-lite'))
+      .toBe('gemini-2.5-flash-lite');
+  });
+
+  it('strips models/ prefix for openrouter gemini models', () => {
+    expect(normalizeModelName('openrouter', 'models/gemini-2.5-pro'))
+      .toBe('google/gemini-2.5-pro');
+    expect(normalizeModelName('openrouter', 'google/models/gemini-2.5-flash-lite'))
+      .toBe('google/gemini-2.5-flash-lite');
+  });
+
+  it('keeps user-selected gemini model ids as entered', () => {
+    expect(normalizeModelName('gemini', 'gemini-3.1-flash-lite'))
+      .toBe('gemini-3.1-flash-lite');
+    expect(normalizeModelName('gemini', 'gemini-2.5-pro'))
+      .toBe('gemini-2.5-pro');
+  });
+
+  it('strips models/ prefix for custom gemini models', () => {
+    expect(normalizeModelName('custom', 'models/gemini-2.5-flash-lite'))
       .toBe('gemini-2.5-flash-lite');
   });
 });

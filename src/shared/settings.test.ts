@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { getDefaultSettings, parseSettings, applyProviderPreset } from '@/shared/settings';
+import { TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
 
 describe('parseSettings', () => {
   it('returns defaults for invalid input', () => {
     const defaults = getDefaultSettings();
     expect(parseSettings(null)).toEqual(defaults);
     expect(parseSettings(undefined)).toEqual(defaults);
+  });
+
+  it('falls back to default api key when stored key is empty', () => {
+    const parsed = parseSettings({
+      provider: 'openai',
+      apiKey: '   ',
+    });
+    expect(parsed.apiKey).toBe(getDefaultSettings().apiKey);
   });
 
   it('normalizes base url', () => {
@@ -34,13 +43,22 @@ describe('parseSettings', () => {
     expect(parsed.model).toBe('gemini-2.5-flash-lite');
   });
 
-  it('migrates stored gemini-3.1-flash-lite to the 2.5 default', () => {
+  it('keeps user-selected gemini model on parse/save', () => {
     const parsed = parseSettings({
       provider: 'gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
       model: 'gemini-3.1-flash-lite',
     });
-    expect(parsed.model).toBe('gemini-2.5-flash-lite');
+    expect(parsed.model).toBe('gemini-3.1-flash-lite');
+  });
+
+  it('strips models/ prefix without remapping model id', () => {
+    const parsed = parseSettings({
+      provider: 'gemini',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      model: 'models/gemini-2.5-pro',
+    });
+    expect(parsed.model).toBe('gemini-2.5-pro');
   });
 
   it('normalizes openrouter gemini model ids', () => {
@@ -81,8 +99,17 @@ describe('parseSettings', () => {
     expect(parseSettings({ translationMode: 'nope' }).translationMode).toBe('bulk');
   });
 
-  it('accepts progressive translation mode', () => {
-    expect(parseSettings({ translationMode: 'progressive' }).translationMode).toBe('progressive');
+  it('defaults translate on open to enabled with empty rules', () => {
+    expect(getDefaultSettings().translateOnOpen).toBe(true);
+    expect(getDefaultSettings().translateOnOpenRules).toEqual([]);
+    expect(parseSettings({}).translateOnOpen).toBe(true);
+    expect(parseSettings({ translateOnOpen: false }).translateOnOpen).toBe(false);
+  });
+
+  it('defaults cache max entries to one million', () => {
+    expect(getDefaultSettings().cacheMaxEntries).toBe(TRANSLATION_CACHE_MAX_ENTRIES);
+    expect(parseSettings({}).cacheMaxEntries).toBe(TRANSLATION_CACHE_MAX_ENTRIES);
+    expect(parseSettings({ cacheMaxEntries: 250_000 }).cacheMaxEntries).toBe(250_000);
   });
 
   it('defaults summary position to right', () => {
@@ -90,6 +117,26 @@ describe('parseSettings', () => {
     expect(parseSettings({}).summaryPosition).toBe('right');
     expect(parseSettings({ summaryPosition: 'left' }).summaryPosition).toBe('left');
     expect(parseSettings({ summaryPosition: 'top' }).summaryPosition).toBe('right');
+  });
+
+  it('defaults copy include link to enabled', () => {
+    expect(getDefaultSettings().copyIncludeLink).toBe(true);
+    expect(parseSettings({}).copyIncludeLink).toBe(true);
+    expect(parseSettings({ copyIncludeLink: false }).copyIncludeLink).toBe(false);
+  });
+
+  it('parses translate on open rules', () => {
+    const parsed = parseSettings({
+      translateOnOpenRules: [
+        { id: 'a', type: 'domain', pattern: 'example.com', enabled: true },
+        { type: 'prefix', pattern: '  ', enabled: true },
+        { type: 'regexp', pattern: '^https://', enabled: false },
+      ],
+    });
+    expect(parsed.translateOnOpenRules).toEqual([
+      { id: 'a', type: 'domain', pattern: 'example.com', enabled: true },
+      expect.objectContaining({ type: 'regexp', pattern: '^https://', enabled: false }),
+    ]);
   });
 });
 

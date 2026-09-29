@@ -67,6 +67,10 @@ describe('buildChatCompletionsUrl', () => {
       'https://generativelanguage.googleapis.com/v1beta/openai',
       'gemini-2.5-flash-lite',
     )).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    expect(buildGeminiGenerateContentUrl(
+      'https://generativelanguage.googleapis.com/v1beta/openai',
+      'models/gemini-2.5-flash-lite',
+    )).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
   });
 
   it('builds gemini interactions urls', () => {

@@ -10,7 +10,12 @@ import {
 import { TranslationRequestError } from '@/features/llm/retry';
 import type { TextChunk } from '@/features/translate/types';
 import { API_KEY_MISSING_MESSAGE } from '@/shared/api-key';
-import { inferProviderFromBaseUrl, toGeminiInteractionModelId } from '@/shared/providers';
+import {
+  GEMINI_PRO_MODEL_PATTERN,
+  GEMINI_PRO_THINKING_LEVEL,
+  GEMINI_THINKING_LEVEL,
+} from '@/shared/constants';
+import { inferProviderFromBaseUrl, resolveRequestModel } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
 export function isGeminiProvider(
@@ -20,8 +25,16 @@ export function isGeminiProvider(
     || inferProviderFromBaseUrl(settings.baseUrl) === 'gemini';
 }
 
-function resolveModel(model: string): string {
-  return toGeminiInteractionModelId(model);
+function resolveModel(settings: ExtensionSettings): string {
+  return resolveRequestModel(settings);
+}
+
+export function resolveGeminiThinkingLevel(
+  model: string,
+): typeof GEMINI_THINKING_LEVEL | typeof GEMINI_PRO_THINKING_LEVEL {
+  return GEMINI_PRO_MODEL_PATTERN.test(model)
+    ? GEMINI_PRO_THINKING_LEVEL
+    : GEMINI_THINKING_LEVEL;
 }
 
 async function requestGeminiBatch(
@@ -30,7 +43,7 @@ async function requestGeminiBatch(
   targetLang: string,
   clientFactory: (apiKey: string, baseUrl: string) => GeminiClient,
 ): Promise<TextChunk[]> {
-  const model = resolveModel(settings.model);
+  const model = resolveModel(settings);
   const client = clientFactory(settings.apiKey, settings.baseUrl);
 
   try {
@@ -42,6 +55,7 @@ async function requestGeminiBatch(
       generation_config: {
         temperature: 0,
         max_output_tokens: estimateMaxTokens(texts),
+        thinking_level: resolveGeminiThinkingLevel(model),
       },
     });
 
@@ -57,7 +71,13 @@ async function requestGeminiBatch(
     }
 
     const { message, status, retryable } = mapGeminiClientError(error);
-    throw new TranslationRequestError(`${message} (model: ${model})`, status, retryable);
+    const parseFailure = /not valid line or JSON|Unable to parse translation JSON|Empty model response/i
+      .test(message);
+    throw new TranslationRequestError(
+      `${message} (model: ${model})`,
+      status,
+      retryable || parseFailure,
+    );
   }
 }
 

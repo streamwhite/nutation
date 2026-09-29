@@ -1,0 +1,40 @@
+{
+  "popup": {
+    "title": "Page Translate",
+    "translateButton": "Translate page",
+    "restoreButton": "Restore original",
+    "summarizeButton": "Summarize page",
+    "summarizeNote": "Best for article-like pages. List or feed pages are often lazy-loaded, so one-shot collection may miss content.",
+    "summarizeStarting": "Summarizing…",
+    "summarizeDone": "Summary ready",
+    "summarizeDoneFromCache": "Summary ready (from cache)",
+    "summarizeTopFrameOnly": "Summarize runs in the top frame only.",
+    "copyButton": "Copy page info",
+    "copyStarting": "Preparing page info…",
+    "copyDone": "Page info copied",
+    "copyTopFrameOnly": "Copy page info runs in the top frame only.",
+    "idle": "Idle",
+    "openSettings": "Open settings",
+    "reloadAndTranslate": "Reload page and translate",
+    "openWebsiteTab": "Open a website tab to translate",
+    "recovering": "Recovering content script…",
+    "pageReloadedRetry": "Page reloaded. Retrying…",
+    "reloading": "Reloading page…",
+    "pageReloadedStarting": "Page reloaded. Starting…"
+  },
+  "summarize": {
+    "overlayTitle": "Page summary",
+    "closeLabel": "Close",
+    "copyLabel": "Copy",
+    "copiedLabel": "Copied",
+    "positionLabel": "Panel position: left / center / right",
+    "fontSmallerLabel": "Decrease text size",
+    "fontLargerLabel": "Increase text size",
+    "listingWarning": "This looks like a list or feed page. Summary may be incomplete because content often loads as you scroll.",
+    "cacheNotice": "Loaded from cache for this page.",
+    "emptyPage": "No readable page text found to summarize.",
+    "emptyResponse": "Empty model response",
+    "systemPrompt": "You summarize web page content clearly and accurately. Write a concise summary in the target language. Use short paragraphs. Do not invent facts. No markdown fences or titles unless needed for clarity.",
+    "userPromptPrefix": "Summarize the following page content."
+  }
+}

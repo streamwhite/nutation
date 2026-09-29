@@ -11,7 +11,12 @@ import {
   shouldTranslateText,
 } from '@/features/translate/batch';
 import { InPageTranslator } from '@/features/translate/in-page-translate';
+import { isSameTranslationLanguage } from '@/features/translate/language-match';
 import { StageTimer } from '@/features/translate/stage-timer';
+import {
+  ensureDocumentTitleTextNode,
+  restoreDocumentTitle,
+} from '@/features/translate/tab-title';
 import type { TabStatus, TextChunk } from '@/features/translate/types';
 import { resolveElementLang } from '@/features/opencc/locale';
 import {
@@ -51,12 +56,15 @@ export class PageTranslator {
   private contentRoot: Element | null = null;
   private mutationObserver: MutationObserver | null = null;
   private intersectionObserver: IntersectionObserver | null = null;
+  private titleObserver: MutationObserver | null = null;
   private pendingNodes = new Set<Text>();
   private batchQueue: QueuedBatch[] = [];
   private inFlightCount = 0;
   private fastLaneDone = false;
   private draining = false;
   private batchRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private titleOriginal: string | null = null;
+  private lastTitleTranslation: string | null = null;
   private readonly scheduleFlush = createDebouncedCallback(
     () => {
       void this.drainQueue();
@@ -87,18 +95,25 @@ export class PageTranslator {
     targetLang: string,
     settings: ExtensionSettings,
   ): Promise<TabStatus> {
+    const pageLang = resolveElementLang(document.documentElement);
+    if (isSameTranslationLanguage(pageLang, targetLang)) {
+      return this.getStatus();
+    }
+
     this.timing.reset();
     this.targetLang = targetLang;
     this.concurrency = TRANSLATE_CONCURRENCY;
     this.translationMode = settings.translationMode;
     this.bulkInitialCollectPending = true;
     this.bulkInitialPackPending = true;
-    this.inPageTranslator = new InPageTranslator(settings, targetLang, this.timing);
+    this.inPageTranslator = new InPageTranslator(settings, targetLang, this.timing, pageLang);
     this.inPageTranslator.warmProvider();
     this.batchQueue = [];
     this.inFlightCount = 0;
     this.fastLaneDone = false;
     this.error = null;
+    this.titleOriginal = null;
+    this.lastTitleTranslation = null;
     this.active = true;
     this.contentRoot = findCollectionRoot(document);
     this.ensureObservers();
@@ -124,6 +139,11 @@ export class PageTranslator {
     this.teardownObservers();
     this.registry.restoreAll();
     this.registry.clear();
+    if (this.titleOriginal !== null) {
+      restoreDocumentTitle(this.titleOriginal);
+    }
+    this.titleOriginal = null;
+    this.lastTitleTranslation = null;
     this.contentRoot = null;
     this.error = null;
     this.timing.freeze();
@@ -154,15 +174,41 @@ export class PageTranslator {
   }
 
   private ensureObservers(): void {
-    if (this.mutationObserver || !this.contentRoot) {
+    if (!this.contentRoot) {
       return;
     }
 
-    this.mutationObserver = observeMutations(this.contentRoot, () => {
+    if (!this.mutationObserver) {
+      this.mutationObserver = observeMutations(this.contentRoot, () => {
+        if (!this.active) {
+          return;
+        }
+        this.scheduleQueueVisible();
+      });
+    }
+
+    this.ensureTitleObserver();
+  }
+
+  private ensureTitleObserver(): void {
+    if (this.titleObserver) {
+      return;
+    }
+    const titleNode = ensureDocumentTitleTextNode(document);
+    const titleEl = titleNode?.parentElement;
+    if (!titleEl) {
+      return;
+    }
+    this.titleObserver = new MutationObserver(() => {
       if (!this.active) {
         return;
       }
-      this.scheduleQueueVisible();
+      this.queueDocumentTitle();
+    });
+    this.titleObserver.observe(titleEl, {
+      childList: true,
+      characterData: true,
+      subtree: true,
     });
   }
 
@@ -189,6 +235,8 @@ export class PageTranslator {
     this.mutationObserver = null;
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
+    this.titleObserver?.disconnect();
+    this.titleObserver = null;
   }
 
   private enqueueNode(node: Text): void {
@@ -199,6 +247,35 @@ export class PageTranslator {
 
   private requestFlush(): void {
     this.scheduleFlush();
+  }
+
+  private queueDocumentTitle(): void {
+    const node = ensureDocumentTitleTextNode(document);
+    if (!node) {
+      return;
+    }
+    const text = node.textContent ?? '';
+    if (!shouldTranslateText(text, MIN_TRANSLATE_TEXT_LENGTH)) {
+      return;
+    }
+    if (text === this.lastTitleTranslation) {
+      return;
+    }
+    if (this.pendingNodes.has(node)) {
+      return;
+    }
+    if (this.registry.hasNode(node) && text === this.titleOriginal) {
+      return;
+    }
+
+    if (this.registry.hasNode(node)) {
+      this.registry.releaseNode(node);
+    }
+
+    this.titleOriginal = text;
+    this.lastTitleTranslation = null;
+    this.enqueueNode(node);
+    this.requestFlush();
   }
 
   private queueVisibleCandidates(): void {
@@ -229,7 +306,8 @@ export class PageTranslator {
       enqueued = true;
     }
 
-    if (enqueued) {
+    this.queueDocumentTitle();
+    if (enqueued || this.pendingNodes.size > 0) {
       this.requestFlush();
     }
 
@@ -413,9 +491,14 @@ export class PageTranslator {
     const result = await this.inPageTranslator.translate(batch);
     this.timing.start('apply_dom');
     const expanded = expandTranslations(result.translations, expand);
+    const titleNode = ensureDocumentTitleTextNode(document);
     for (const item of expanded) {
+      const record = this.registry.get(item.id);
       if (this.registry.applyTranslation(item.id, item.text)) {
         this.timing.markFirstVisible();
+        if (titleNode && record?.node === titleNode) {
+          this.lastTitleTranslation = item.text;
+        }
       }
     }
     this.timing.end('apply_dom');

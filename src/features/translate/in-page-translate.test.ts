@@ -23,6 +23,11 @@ const settings: ExtensionSettings = {
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
   translationMode: 'bulk',
+  translateOnOpen: true,
+  translateOnOpenRules: [],
+  summaryPosition: 'right',
+  cacheMaxEntries: 1_000_000,
+  copyIncludeLink: true,
 };
 
 describe('InPageTranslator', () => {
@@ -75,6 +80,42 @@ describe('InPageTranslator', () => {
     expect(result.translations).toEqual([{ id: '0', text: '软件' }]);
     expect(result.fromApi).toBe(0);
     expect(timing.start).toHaveBeenCalledWith('opencc_convert');
+  });
+
+  it('converts simplified chinese to traditional with opencc', async () => {
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'zh-TW', timing as never);
+
+    const result = await translator.translate([
+      { id: '0', text: '软件', sourceLang: 'zh-CN' },
+    ]);
+
+    expect(translateBatchViaBackground).not.toHaveBeenCalled();
+    expect(result.translations).toEqual([{ id: '0', text: '軟體' }]);
+    expect(result.fromApi).toBe(0);
+  });
+
+  it('converts mixed chinese via opencc when the page language is chinese', async () => {
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'zh-CN', timing as never, 'zh-TW');
+
+    const result = await translator.translate([
+      { id: '0', text: 'iPhone 15 Pro 開箱評測' },
+    ]);
+
+    expect(translateBatchViaBackground).not.toHaveBeenCalled();
+    expect(result.translations).toEqual([{ id: '0', text: 'iPhone 15 Pro 开箱评测' }]);
+    expect(result.fromApi).toBe(0);
   });
 
   it('warms gemini once through background', async () => {

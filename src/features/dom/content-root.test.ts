@@ -88,7 +88,7 @@ describe('findMainContentRoot', () => {
 });
 
 describe('findCollectionRoot', () => {
-  it('uses main when present and body otherwise', () => {
+  it('uses body even when main is present', () => {
     document.body.innerHTML = `
       <nav id="site-nav">Site menu</nav>
       <main id="main">
@@ -102,12 +102,12 @@ describe('findCollectionRoot', () => {
     const root = findCollectionRoot(document);
     const texts = collectTextNodes(root).map((item) => item.text.trim());
 
-    expect(root.id).toBe('main');
+    expect(root).toBe(document.body);
     expect(texts).toContain('Story one headline');
     expect(texts).not.toContain('Site menu');
   });
 
-  it('falls back to body so content outside article tags is collected', () => {
+  it('collects content outside article tags from body', () => {
     document.body.innerHTML = `
       <nav id="site-nav">Site menu</nav>
       <section id="stream">
@@ -123,6 +123,35 @@ describe('findCollectionRoot', () => {
 
     expect(root).toBe(document.body);
     expect(texts).toContain('Story one headline');
+    expect(texts).not.toContain('Site menu');
+  });
+
+  it('includes TechCrunch-style hero title outside main via body root', () => {
+    const title = 'Satya Nadella has issued a shocking warning to companies using AI';
+    document.body.innerHTML = `
+      <div class="wp-site-blocks" id="site-blocks">
+        <header id="site-header">
+          <nav>Site menu</nav>
+        </header>
+        <div class="article-hero">
+          <div class="article-hero__share">Share</div>
+          <h1 class="article-hero__title wp-block-post-title" id="hero-title">${title}</h1>
+        </div>
+        <main id="main" class="template-content">
+          <p>${'Article body paragraph text '.repeat(12)}</p>
+          <h2>${title}</h2>
+        </main>
+      </div>
+    `;
+
+    const root = findCollectionRoot(document);
+    const texts = collectTextNodes(root).map((item) => item.text.trim());
+    const hero = document.getElementById('hero-title')!;
+
+    expect(root).toBe(document.body);
+    expect(root.contains(hero)).toBe(true);
+    expect(isChromeElement(hero)).toBe(false);
+    expect(texts).toContain(title);
     expect(texts).not.toContain('Site menu');
   });
 });

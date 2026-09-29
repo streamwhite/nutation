@@ -79,12 +79,27 @@
             <div id="translation-mode-help" class="form-text"></div>
           </div>
 
-
           <div class="mb-3">
             <label for="summary-position" class="form-label">Summary panel position</label>
             <select id="summary-position" class="form-select" required></select>
             <div class="form-text">
               Where the AI summary panel opens. You can still cycle positions from the panel itself.
+            </div>
+          </div>
+
+          <div class="form-check mb-3">
+            <input
+              id="copy-include-link"
+              class="form-check-input"
+              type="checkbox"
+              checked
+            />
+            <label for="copy-include-link" class="form-check-label">
+              Include the page link when copying page info
+            </label>
+            <div class="form-text">
+              Copy page info copies the translated title and description, plus the link with
+              tracking parameters (like utm_source) removed.
             </div>
           </div>
 
@@ -111,7 +126,53 @@
 
       <section class="card shadow-sm border-0 mt-4">
         <div class="card-body">
-          <h2 class="h5 mb-3">Translation cache</h2>
+          <h2 class="h5 mb-3">Translate on open</h2>
+          <div class="form-check mb-3">
+            <input
+              id="translate-on-open"
+              class="form-check-input"
+              type="checkbox"
+              checked
+            />
+            <label for="translate-on-open" class="form-check-label">
+              Auto-translate matching sites when opened
+            </label>
+          </div>
+          <div id="translate-on-open-rules" class="mb-3"></div>
+          <div class="d-flex gap-2">
+            <button id="add-translate-on-open-rule" class="btn btn-outline-secondary btn-sm" type="button">
+              Add rule
+            </button>
+            <button id="save-translate-on-open" class="btn btn-primary btn-sm" type="button">
+              Save translate-on-open
+            </button>
+          </div>
+          <div id="translate-on-open-alert" class="alert alert-success mt-3 d-none" role="alert">
+            Translate-on-open settings saved.
+          </div>
+          <div id="translate-on-open-error" class="alert alert-danger mt-3 d-none" role="alert"></div>
+        </div>
+      </section>
+
+      <section class="card shadow-sm border-0 mt-4">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Translation & summary cache</h2>
+          <p class="form-text mt-0 mb-3">
+            Stores translation segments and page summaries. Clearing removes both.
+          </p>
+          <div class="mb-3">
+            <label for="cache-max-entries" class="form-label">Max IndexedDB entries</label>
+            <input
+              id="cache-max-entries"
+              class="form-control"
+              type="number"
+              inputmode="numeric"
+              required
+            />
+            <div id="cache-max-entries-estimate" class="form-text">
+              Estimated space at full capacity: …
+            </div>
+          </div>
           <dl class="row mb-3 small">
             <dt class="col-sm-5">Cached entries</dt>
             <dd class="col-sm-7" id="cache-entry-count">Loading…</dd>
@@ -122,9 +183,17 @@
             <dt class="col-sm-5">Extension storage</dt>
             <dd class="col-sm-7" id="cache-storage-usage">Loading…</dd>
           </dl>
-          <button id="clear-cache-btn" class="btn btn-outline-danger btn-sm" type="button">
-            Clear translation cache
-          </button>
+          <div class="d-flex gap-2">
+            <button id="save-cache-settings-btn" class="btn btn-primary btn-sm" type="button">
+              Save cache settings
+            </button>
+            <button id="clear-cache-btn" class="btn btn-outline-danger btn-sm" type="button">
+              Clear translation & summary cache
+            </button>
+          </div>
+          <div id="cache-save-alert" class="alert alert-success mt-3 d-none small mb-0" role="alert">
+            Cache settings saved.
+          </div>
           <div id="cache-error" class="alert alert-danger mt-3 d-none small mb-0" role="alert"></div>
         </div>
       </section>

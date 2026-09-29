@@ -1,6 +1,16 @@
+import { resolveDefaultApiKey } from '@/shared/api-key';
 import { browser } from 'wxt/browser';
-import { STORAGE_KEYS } from '@/shared/constants';
+import { STORAGE_KEYS, TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
 import { normalizeApiBaseUrl, normalizeCustomChatCompletionsUrl } from '@/features/llm/api-url';
+import { resolveCacheMaxEntries } from '@/features/translate/cache-max-entries';
+import {
+  parseTranslateOnOpenRules,
+  type TranslateOnOpenRule,
+} from '@/features/translate-on-open/match';
+import {
+  resolveSummaryPosition,
+  type SummaryPosition,
+} from '@/features/summarize/summary-position';
 import { resolveTargetLanguageCode } from '@/shared/languages';
 import {
   getProviderPreset,
@@ -14,10 +24,6 @@ import {
   resolveTranslationMode,
   type TranslationMode,
 } from '@/shared/translation-mode';
-import {
-  resolveSummaryPosition,
-  type SummaryPosition,
-} from '@/features/summarize/summary-position';
 
 export type ExtensionSettings = {
   provider: ProviderId;
@@ -27,7 +33,11 @@ export type ExtensionSettings = {
   targetLang: string;
   autoRecoverContentScript: boolean;
   translationMode: TranslationMode;
+  translateOnOpen: boolean;
+  translateOnOpenRules: TranslateOnOpenRule[];
   summaryPosition: SummaryPosition;
+  cacheMaxEntries: number;
+  copyIncludeLink: boolean;
 };
 
 export function getDefaultSettings(): ExtensionSettings {
@@ -39,14 +49,21 @@ export function getDefaultSettings(): ExtensionSettings {
   return {
     provider,
     baseUrl: import.meta.env.VITE_DEFAULT_BASE_URL || preset.baseUrl,
-    apiKey: '',
+    apiKey: resolveDefaultApiKey(),
     model: import.meta.env.VITE_DEFAULT_MODEL || preset.defaultModel,
     targetLang: import.meta.env.VITE_DEFAULT_TARGET_LANG || 'zh-CN',
     autoRecoverContentScript: true,
     translationMode: resolveTranslationMode(import.meta.env.VITE_DEFAULT_TRANSLATION_MODE),
+    translateOnOpen: true,
+    translateOnOpenRules: [],
     summaryPosition: resolveSummaryPosition(
       import.meta.env.VITE_DEFAULT_SUMMARY_POSITION,
     ),
+    cacheMaxEntries: resolveCacheMaxEntries(
+      import.meta.env.VITE_DEFAULT_CACHE_MAX_ENTRIES,
+      TRANSLATION_CACHE_MAX_ENTRIES,
+    ),
+    copyIncludeLink: true,
   };
 }
 
@@ -75,16 +92,22 @@ export function parseSettings(raw: unknown): ExtensionSettings {
   return {
     provider,
     baseUrl,
-    apiKey: typeof value.apiKey === 'string' ? value.apiKey : defaults.apiKey,
+    apiKey: typeof value.apiKey === 'string' && value.apiKey.trim()
+      ? value.apiKey
+      : defaults.apiKey,
     model: normalizeModelName(provider, rawModel),
     targetLang: typeof value.targetLang === 'string' && value.targetLang.trim()
       ? resolveTargetLanguageCode(value.targetLang, defaults.targetLang)
       : defaults.targetLang,
     autoRecoverContentScript: value.autoRecoverContentScript !== false,
     translationMode: resolveTranslationMode(value.translationMode),
+    translateOnOpen: value.translateOnOpen !== false,
+    translateOnOpenRules: parseTranslateOnOpenRules(value.translateOnOpenRules),
     summaryPosition: resolveSummaryPosition(
       value.summaryPosition ?? defaults.summaryPosition,
     ),
+    cacheMaxEntries: resolveCacheMaxEntries(value.cacheMaxEntries, defaults.cacheMaxEntries),
+    copyIncludeLink: value.copyIncludeLink !== false,
   };
 }
 

@@ -8,25 +8,55 @@ import {
   mergeTabStatuses,
   sendMessageToAllFrames,
 } from '@/features/content-script/frame-messaging';
+import {
+  formatMultiTabStartLabel,
+  formatRestoreButtonLabel,
+  formatSelectedTabsStatus,
+  formatTranslateButtonLabel,
+  noTranslatableTabsMessage,
+  normalizePopupTabs,
+  partitionTranslatableTabs,
+  summarizeMultiTabResults,
+  type MultiTabResult,
+  type PopupTab,
+} from '@/features/popup/selected-tabs';
 import { formatStatusText } from '@/features/translate/page-translator';
 import { MESSAGE_TYPES, POPUP_STATUS_POLL_MS } from '@/shared/constants';
 import { API_KEY_MISSING_MESSAGE, hasApiKey } from '@/shared/api-key';
 import { loadSettings, type ExtensionSettings } from '@/shared/settings';
+import { getUiStrings } from '@/shared/ui-strings';
 import type {
   ContentScriptMessage,
+  CopyPageInfoResponse,
   EnsureContentScriptResponse,
+  SummarizePageResponse,
   TabStatus,
 } from '@/features/translate/types';
 
+const ui = getUiStrings().popup;
 const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
 const stopBtn = document.querySelector<HTMLButtonElement>('#stop-btn')!;
+const summarizeBtn = document.querySelector<HTMLButtonElement>('#summarize-btn')!;
+const copyBtn = document.querySelector<HTMLButtonElement>('#copy-btn')!;
+const summarizeNote = document.querySelector<HTMLElement>('#summarize-note')!;
 const reloadBtn = document.querySelector<HTMLButtonElement>('#reload-btn')!;
 const statusEl = document.querySelector<HTMLElement>('#status')!;
 const errorEl = document.querySelector<HTMLElement>('#error')!;
 const openOptions = document.querySelector<HTMLAnchorElement>('#open-options')!;
+const popupTitle = document.querySelector<HTMLElement>('#popup-title')!;
 
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 let pendingReloadTabId: number | null = null;
+let selectedTabCount = 1;
+
+function applyStaticLabels(): void {
+  popupTitle.textContent = ui.title;
+  summarizeBtn.textContent = ui.summarizeButton;
+  copyBtn.textContent = ui.copyButton;
+  summarizeNote.textContent = ui.summarizeNote;
+  reloadBtn.textContent = ui.reloadAndTranslate;
+  openOptions.textContent = ui.openSettings;
+}
 
 function setError(message: string | null): void {
   if (!message) {
@@ -47,8 +77,16 @@ function setReloadAction(tabId: number | null): void {
   reloadBtn.classList.remove('d-none');
 }
 
-function renderStatus(status: TabStatus): void {
-  statusEl.textContent = formatStatusText(status);
+function updateActionLabels(tabCount: number): void {
+  selectedTabCount = Math.max(1, tabCount);
+  startBtn.textContent = formatTranslateButtonLabel(selectedTabCount);
+  stopBtn.textContent = formatRestoreButtonLabel(selectedTabCount);
+}
+
+function renderStatus(status: TabStatus, tabCount = selectedTabCount): void {
+  statusEl.textContent = tabCount > 1
+    ? formatSelectedTabsStatus(tabCount, status.active)
+    : formatStatusText(status);
   setError(status.error);
   setReloadAction(null);
 
@@ -76,18 +114,61 @@ function stopStatusPolling(): void {
   statusPollTimer = null;
 }
 
-async function getActiveTab(): Promise<{ id: number; url: string }> {
-  const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0];
-  if (typeof tab?.id !== 'number') {
+async function getSelectedTabs(): Promise<PopupTab[]> {
+  const highlighted = await browser.tabs.query({
+    highlighted: true,
+    currentWindow: true,
+  });
+  const selected = normalizePopupTabs(highlighted);
+  if (selected.length > 0) {
+    return selected;
+  }
+
+  const active = await browser.tabs.query({ active: true, currentWindow: true });
+  return normalizePopupTabs(active);
+}
+
+async function getActiveTab(): Promise<PopupTab> {
+  const tabs = await getSelectedTabs();
+  const active = tabs.find((tab) => !isRestrictedUrl(tab.url)) ?? tabs[0];
+  if (!active) {
     throw new Error('No active tab found');
   }
-  return { id: tab.id, url: tab.url ?? '' };
+  return active;
 }
 
 function formatContentScriptError(error: unknown): Error {
   const detail = error instanceof Error ? error.message : String(error);
   return new Error(`Content script unavailable. Reload the page and try again. (${detail})`);
+}
+
+function pickSummarizeResponse(results: SummarizePageResponse[]): SummarizePageResponse {
+  return results.find((item) => item.ok) ?? results[0] ?? {
+    ok: false,
+    error: ui.summarizeTopFrameOnly,
+  };
+}
+
+function pickCopyResponse(results: CopyPageInfoResponse[]): CopyPageInfoResponse {
+  return results.find((item) => item.ok) ?? results[0] ?? {
+    ok: false,
+    error: ui.copyTopFrameOnly,
+  };
+}
+
+function resolveTabResults<T>(message: ContentScriptMessage, results: unknown[]): T {
+  if (message.type === MESSAGE_TYPES.GET_TAB_STATUS
+    || message.type === MESSAGE_TYPES.START_TRANSLATE
+    || message.type === MESSAGE_TYPES.STOP_TRANSLATE) {
+    return mergeTabStatuses(results as TabStatus[]) as T;
+  }
+  if (message.type === MESSAGE_TYPES.SUMMARIZE_PAGE) {
+    return pickSummarizeResponse(results as SummarizePageResponse[]) as T;
+  }
+  if (message.type === MESSAGE_TYPES.COPY_PAGE_INFO) {
+    return pickCopyResponse(results as CopyPageInfoResponse[]) as T;
+  }
+  return results[0] as T;
 }
 
 async function recoverContentScript(tabId: number): Promise<EnsureContentScriptResponse> {
@@ -104,12 +185,7 @@ async function sendToTab<T>(
 ): Promise<T> {
   try {
     const results = await sendMessageToAllFrames<T>(tabId, message);
-    if (message.type === MESSAGE_TYPES.GET_TAB_STATUS
-      || message.type === MESSAGE_TYPES.START_TRANSLATE
-      || message.type === MESSAGE_TYPES.STOP_TRANSLATE) {
-      return mergeTabStatuses(results as TabStatus[]) as T;
-    }
-    return results[0] as T;
+    return resolveTabResults<T>(message, results);
   } catch (error) {
     if (!isConnectionError(error)) {
       throw error;
@@ -119,7 +195,7 @@ async function sendToTab<T>(
       throw formatContentScriptError(error);
     }
 
-    statusEl.textContent = 'Recovering content script…';
+    statusEl.textContent = ui.recovering;
     setReloadAction(null);
     const recovered = await recoverContentScript(tabId);
     if (!recovered.ok) {
@@ -127,28 +203,31 @@ async function sendToTab<T>(
     }
 
     if (recovered.recovered && recovered.method === 'reload') {
-      statusEl.textContent = 'Page reloaded. Retrying…';
+      statusEl.textContent = ui.pageReloadedRetry;
     }
 
     try {
       const results = await sendMessageToAllFrames<T>(tabId, message);
-      if (message.type === MESSAGE_TYPES.GET_TAB_STATUS
-        || message.type === MESSAGE_TYPES.START_TRANSLATE
-        || message.type === MESSAGE_TYPES.STOP_TRANSLATE) {
-        return mergeTabStatuses(results as TabStatus[]) as T;
-      }
-      return results[0] as T;
+      return resolveTabResults<T>(message, results);
     } catch (retryError) {
       throw formatContentScriptError(retryError);
     }
   }
 }
 
+async function refreshActionLabels(): Promise<void> {
+  const tabs = await getSelectedTabs();
+  updateActionLabels(tabs.length);
+}
+
 async function refreshStatus(): Promise<void> {
   try {
-    const tab = await getActiveTab();
-    if (isRestrictedUrl(tab.url)) {
-      statusEl.textContent = 'Open a website tab to translate';
+    const tabs = await getSelectedTabs();
+    updateActionLabels(tabs.length);
+    const { translatable } = partitionTranslatableTabs(tabs);
+    const tab = translatable[0] ?? tabs[0];
+    if (!tab || isRestrictedUrl(tab.url)) {
+      statusEl.textContent = ui.openWebsiteTab;
       setError(null);
       setReloadAction(null);
       stopStatusPolling();
@@ -156,16 +235,19 @@ async function refreshStatus(): Promise<void> {
     }
 
     const settings = await loadSettings();
-    const status = await sendToTab<TabStatus>(
-      tab.id,
-      { type: MESSAGE_TYPES.GET_TAB_STATUS },
-      settings.autoRecoverContentScript,
-    );
-    renderStatus(status);
+    const statuses = await Promise.all(translatable.map((item) => (
+      sendToTab<TabStatus>(
+        item.id,
+        { type: MESSAGE_TYPES.GET_TAB_STATUS },
+        settings.autoRecoverContentScript,
+      )
+    )));
+    const merged = mergeTabStatuses(statuses);
+    renderStatus(merged, translatable.length);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/cannot be translated/i.test(message)) {
-      statusEl.textContent = 'Open a website tab to translate';
+      statusEl.textContent = ui.openWebsiteTab;
       setError(null);
       setReloadAction(null);
     } else if (isConnectionError(error) || /content script unavailable/i.test(message)) {
@@ -185,19 +267,21 @@ async function refreshStatus(): Promise<void> {
   }
 }
 
-function setTranslateEnabled(enabled: boolean): void {
+function setActionsEnabled(enabled: boolean): void {
   startBtn.disabled = !enabled;
+  summarizeBtn.disabled = !enabled;
+  copyBtn.disabled = !enabled;
 }
 
 function requireApiKey(settings: ExtensionSettings): boolean {
   if (hasApiKey(settings)) {
-    setTranslateEnabled(true);
+    setActionsEnabled(true);
     return true;
   }
-  setTranslateEnabled(false);
+  setActionsEnabled(false);
   setError(API_KEY_MISSING_MESSAGE);
   setReloadAction(null);
-  statusEl.textContent = 'Idle';
+  statusEl.textContent = ui.idle;
   stopStatusPolling();
   return false;
 }
@@ -209,6 +293,29 @@ function warmProvider(settings: ExtensionSettings): void {
   }).catch(() => undefined);
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function runOnTabs(
+  tabs: PopupTab[],
+  autoRecover: boolean,
+  message: ContentScriptMessage,
+): Promise<MultiTabResult[]> {
+  return Promise.all(tabs.map(async (tab) => {
+    try {
+      await sendToTab<TabStatus>(tab.id, message, autoRecover);
+      return { ok: true as const, tabId: tab.id };
+    } catch (error) {
+      return {
+        ok: false as const,
+        tabId: tab.id,
+        error: errorMessage(error),
+      };
+    }
+  }));
+}
+
 async function startTranslate(): Promise<void> {
   setError(null);
   setReloadAction(null);
@@ -218,48 +325,188 @@ async function startTranslate(): Promise<void> {
     return;
   }
 
-  const tab = await getActiveTab();
-  if (isRestrictedUrl(tab.url)) {
-    statusEl.textContent = 'Idle';
-    setError(getRestrictedPageMessage());
+  const selected = await getSelectedTabs();
+  updateActionLabels(selected.length);
+  const { translatable, restricted } = partitionTranslatableTabs(selected);
+  if (translatable.length === 0) {
+    statusEl.textContent = ui.idle;
+    setError(noTranslatableTabsMessage(restricted.length));
     return;
   }
 
   warmProvider(settings);
+  statusEl.textContent = formatMultiTabStartLabel(translatable.length);
 
-  statusEl.textContent = 'Starting…';
+  const results = await runOnTabs(
+    translatable,
+    settings.autoRecoverContentScript,
+    {
+      type: MESSAGE_TYPES.START_TRANSLATE,
+      targetLang: settings.targetLang,
+    },
+  );
+  const summary = summarizeMultiTabResults(results);
+
+  if (summary.started > 0) {
+    renderStatus({
+      active: true,
+      error: null,
+      translatedCount: 0,
+    }, summary.started);
+  }
+
+  if (summary.failed > 0) {
+    const skipped = restricted.length > 0
+      ? ` Skipped ${restricted.length} restricted tab(s).`
+      : '';
+    const detail = summary.started > 0
+      ? `Started ${summary.started}/${translatable.length} tabs. ${summary.firstError}${skipped}`
+      : `${summary.firstError}${skipped}`;
+    setError(detail);
+    if (!settings.autoRecoverContentScript
+      && summary.firstFailedTabId !== null
+      && summary.started === 0
+      && /content script unavailable|receiving end does not exist/i.test(summary.firstError ?? '')) {
+      setReloadAction(summary.firstFailedTabId);
+    }
+    return;
+  }
+
+  if (restricted.length > 0) {
+    setError(`Skipped ${restricted.length} restricted tab(s).`);
+  }
+}
+
+async function stopTranslate(): Promise<void> {
+  setError(null);
+  setReloadAction(null);
+
+  const selected = await getSelectedTabs();
+  updateActionLabels(selected.length);
+  const { translatable, restricted } = partitionTranslatableTabs(selected);
+  if (translatable.length === 0) {
+    setError(noTranslatableTabsMessage(restricted.length));
+    return;
+  }
+
+  const settings = await loadSettings();
+  const results = await runOnTabs(
+    translatable,
+    settings.autoRecoverContentScript,
+    { type: MESSAGE_TYPES.STOP_TRANSLATE },
+  );
+  const summary = summarizeMultiTabResults(results);
+
+  if (summary.started > 0) {
+    renderStatus({
+      active: false,
+      error: null,
+      translatedCount: 0,
+    }, summary.started);
+  }
+
+  if (summary.failed > 0) {
+    setError(summary.started > 0
+      ? `Restored ${summary.started}/${translatable.length} tabs. ${summary.firstError}`
+      : summary.firstError);
+  }
+}
+
+async function startSummarize(): Promise<void> {
+  setError(null);
+  setReloadAction(null);
+
+  const settings = await loadSettings();
+  if (!requireApiKey(settings)) {
+    return;
+  }
+
+  const selected = await getSelectedTabs();
+  const { translatable, restricted } = partitionTranslatableTabs(selected);
+  const tab = translatable[0];
+  if (!tab) {
+    statusEl.textContent = ui.idle;
+    setError(noTranslatableTabsMessage(restricted.length));
+    return;
+  }
+
+  warmProvider(settings);
+  summarizeBtn.disabled = true;
+  statusEl.textContent = ui.summarizeStarting;
+
   try {
-    const status = await sendToTab<TabStatus>(
+    const result = await sendToTab<SummarizePageResponse>(
       tab.id,
-      {
-        type: MESSAGE_TYPES.START_TRANSLATE,
-        targetLang: settings.targetLang,
-      },
+      { type: MESSAGE_TYPES.SUMMARIZE_PAGE, targetLang: settings.targetLang },
       settings.autoRecoverContentScript,
     );
-    renderStatus(status);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/cannot be translated/i.test(message)) {
-      setError(message);
-      setReloadAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      statusEl.textContent = ui.idle;
       return;
     }
-    setError(message);
-    if (!settings.autoRecoverContentScript && (
-      isConnectionError(error) || /content script unavailable/i.test(message)
-    )) {
-      setReloadAction(tab.id);
+    statusEl.textContent = result.fromCache
+      ? ui.summarizeDoneFromCache
+      : ui.summarizeDone;
+  } catch (error) {
+    setError(errorMessage(error));
+    statusEl.textContent = ui.idle;
+  } finally {
+    summarizeBtn.disabled = false;
+  }
+}
+
+async function copyPageInfo(): Promise<void> {
+  setError(null);
+  setReloadAction(null);
+
+  const settings = await loadSettings();
+  if (!requireApiKey(settings)) {
+    return;
+  }
+
+  const selected = await getSelectedTabs();
+  const { translatable, restricted } = partitionTranslatableTabs(selected);
+  const tab = translatable[0];
+  if (!tab) {
+    statusEl.textContent = ui.idle;
+    setError(noTranslatableTabsMessage(restricted.length));
+    return;
+  }
+
+  warmProvider(settings);
+  copyBtn.disabled = true;
+  statusEl.textContent = ui.copyStarting;
+
+  try {
+    const result = await sendToTab<CopyPageInfoResponse>(
+      tab.id,
+      { type: MESSAGE_TYPES.COPY_PAGE_INFO, targetLang: settings.targetLang },
+      settings.autoRecoverContentScript,
+    );
+    if (!result.ok) {
+      setError(result.error);
+      statusEl.textContent = ui.idle;
+      return;
     }
+    await navigator.clipboard.writeText(result.text);
+    statusEl.textContent = ui.copyDone;
+  } catch (error) {
+    setError(errorMessage(error));
+    statusEl.textContent = ui.idle;
+  } finally {
+    copyBtn.disabled = false;
   }
 }
 
 async function init(): Promise<void> {
+  applyStaticLabels();
   const settings = await loadSettings();
   if (!requireApiKey(settings)) {
     return;
   }
   warmProvider(settings);
+  await refreshActionLabels();
   await refreshStatus();
 }
 
@@ -267,26 +514,16 @@ startBtn.addEventListener('click', () => {
   void startTranslate();
 });
 
-stopBtn.addEventListener('click', async () => {
-  try {
-    setError(null);
-    setReloadAction(null);
-    const tab = await getActiveTab();
-    if (isRestrictedUrl(tab.url)) {
-      setError(getRestrictedPageMessage());
-      return;
-    }
-    const settings = await loadSettings();
-    const status = await sendToTab<TabStatus>(
-      tab.id,
-      { type: MESSAGE_TYPES.STOP_TRANSLATE },
-      settings.autoRecoverContentScript,
-    );
-    renderStatus(status);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : String(error));
-    setReloadAction(null);
-  }
+stopBtn.addEventListener('click', () => {
+  void stopTranslate();
+});
+
+summarizeBtn.addEventListener('click', () => {
+  void startSummarize();
+});
+
+copyBtn.addEventListener('click', () => {
+  void copyPageInfo();
 });
 
 reloadBtn.addEventListener('click', async () => {
@@ -297,15 +534,15 @@ reloadBtn.addEventListener('click', async () => {
 
   reloadBtn.disabled = true;
   setError(null);
-  statusEl.textContent = 'Reloading page…';
+  statusEl.textContent = ui.reloading;
 
   try {
     await browser.tabs.reload(tabId);
-    statusEl.textContent = 'Page reloaded. Starting…';
+    statusEl.textContent = ui.pageReloadedStarting;
     setReloadAction(null);
     await startTranslate();
   } catch (error) {
-    setError(error instanceof Error ? error.message : String(error));
+    setError(errorMessage(error));
     setReloadAction(tabId);
   } finally {
     reloadBtn.disabled = false;

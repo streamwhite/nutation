@@ -12,9 +12,7 @@ export const PROVIDER_CATEGORY_LABELS: Record<ProviderCategory, string> = {
 
 export const PROVIDER_IDS = [
   'openrouter',
-  'groq',
-  'together',
-  'fireworks',
+  'vercel',
   'openai',
   'gemini',
   'deepseek',
@@ -36,10 +34,13 @@ export type ProviderPreset = {
 export const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash-lite';
 export const GEMINI_MODELS_PREFIX = 'models/';
 
-const GEMINI_MODEL_ALIASES: Record<string, string> = {
-  'gemini-3.1-flash-lite': GEMINI_DEFAULT_MODEL,
-  'gemini-3.1-flash-lite-preview': GEMINI_DEFAULT_MODEL,
-};
+function isBareGeminiModelId(model: string): boolean {
+  return model.startsWith('gemini-') || model.startsWith('gemma-');
+}
+
+function stripGoogleProviderPrefix(model: string): string {
+  return model.startsWith('google/') ? model.slice('google/'.length) : model;
+}
 
 export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   openrouter: {
@@ -50,29 +51,13 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
     defaultModel: 'deepseek/deepseek-v4-flash',
     modelPlaceholder: 'deepseek/deepseek-v4-flash',
   },
-  groq: {
-    id: 'groq',
-    label: 'Groq',
+  vercel: {
+    id: 'vercel',
+    label: 'Vercel AI Gateway',
     category: 'gateway',
-    baseUrl: 'https://api.groq.com/openai/v1',
-    defaultModel: 'llama-3.3-70b-versatile',
-    modelPlaceholder: 'llama-3.3-70b-versatile',
-  },
-  together: {
-    id: 'together',
-    label: 'Together AI',
-    category: 'gateway',
-    baseUrl: 'https://api.together.xyz/v1',
-    defaultModel: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
-    modelPlaceholder: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
-  },
-  fireworks: {
-    id: 'fireworks',
-    label: 'Fireworks',
-    category: 'gateway',
-    baseUrl: 'https://api.fireworks.ai/inference/v1',
-    defaultModel: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
-    modelPlaceholder: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+    baseUrl: 'https://ai-gateway.vercel.sh/v1',
+    defaultModel: 'google/gemini-3.1-flash-lite',
+    modelPlaceholder: 'google/gemini-3.1-flash-lite',
   },
   openai: {
     id: 'openai',
@@ -145,14 +130,8 @@ export function inferProviderFromBaseUrl(baseUrl: string): ProviderId {
   if (normalized.includes('openrouter.ai')) {
     return 'openrouter';
   }
-  if (normalized.includes('api.groq.com')) {
-    return 'groq';
-  }
-  if (normalized.includes('api.together.xyz') || normalized.includes('together.xyz')) {
-    return 'together';
-  }
-  if (normalized.includes('api.fireworks.ai')) {
-    return 'fireworks';
+  if (normalized.includes('ai-gateway.vercel.sh')) {
+    return 'vercel';
   }
   if (normalized.includes('generativelanguage.googleapis.com')) {
     return 'gemini';
@@ -181,17 +160,41 @@ export function resolveProvider(
 
 export function normalizeModelName(provider: ProviderId, model: string): string {
   const trimmed = model.trim();
+  const geminiBare = normalizeGeminiModel(trimmed);
+
   if (provider === 'gemini') {
-    return normalizeGeminiModel(trimmed);
+    return geminiBare;
   }
-  if (provider === 'openrouter' && !trimmed.includes('/') && trimmed.startsWith('gemini-')) {
-    return `google/${normalizeGeminiModel(trimmed)}`;
+
+  if (provider === 'openrouter') {
+    if (trimmed.startsWith('google/')) {
+      return `google/${normalizeGeminiModel(trimmed.slice('google/'.length))}`;
+    }
+    if (isBareGeminiModelId(geminiBare)) {
+      return `google/${geminiBare}`;
+    }
+    return trimmed;
   }
+
+  if (isBareGeminiModelId(geminiBare)) {
+    return geminiBare;
+  }
+
   return trimmed;
 }
 
+export function resolveRequestModel(
+  settings: Pick<ExtensionSettings, 'provider' | 'baseUrl' | 'model'>,
+): string {
+  if (settings.provider === 'gemini'
+    || inferProviderFromBaseUrl(settings.baseUrl) === 'gemini') {
+    return normalizeGeminiModel(settings.model);
+  }
+  return normalizeModelName(settings.provider, settings.model);
+}
+
 export function stripGeminiModelsPrefix(model: string): string {
-  let normalized = model.trim();
+  let normalized = stripGoogleProviderPrefix(model.trim());
   while (normalized.startsWith(GEMINI_MODELS_PREFIX)) {
     normalized = normalized.slice(GEMINI_MODELS_PREFIX.length);
   }
@@ -199,8 +202,7 @@ export function stripGeminiModelsPrefix(model: string): string {
 }
 
 export function normalizeGeminiModel(model: string): string {
-  const withoutPrefix = stripGeminiModelsPrefix(model);
-  return GEMINI_MODEL_ALIASES[withoutPrefix] ?? withoutPrefix;
+  return stripGeminiModelsPrefix(model);
 }
 
 export function toGeminiInteractionModelId(model: string): string {

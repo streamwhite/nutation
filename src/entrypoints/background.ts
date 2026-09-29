@@ -2,6 +2,7 @@ import { registerContentScriptIfNeeded, recoverContentScript } from '@/features/
 import { warmGeminiConnection } from '@/features/llm/gemini-warm';
 import { translateBatchWithOpenAI } from '@/features/llm/openai-compatible';
 import { isRetryableError, TranslationRequestError, withRetries } from '@/features/llm/retry';
+import { summarizePageTextWithLlm } from '@/features/summarize/summarize-llm';
 import { setCachedTranslations } from '@/features/translate/cache';
 import {
   bindTranslateContextMenu,
@@ -10,6 +11,7 @@ import {
 import type {
   BackgroundMessage,
   EnsureContentScriptResponse,
+  SummarizeTextResponse,
   TranslateBatchResponse,
 } from '@/features/translate/types';
 import { MESSAGE_TYPES } from '@/shared/constants';
@@ -54,6 +56,37 @@ export default defineBackground(() => {
       return warmGeminiConnection(message.settings)
         .then(() => ({ ok: true }))
         .catch(() => ({ ok: false }));
+    }
+
+    if (message.type === MESSAGE_TYPES.SUMMARIZE_TEXT) {
+      return withRetries(
+        () => summarizePageTextWithLlm(
+          message.settings,
+          message.text,
+          message.targetLang,
+          message.pageUrl,
+        ),
+      )
+        .then((result): SummarizeTextResponse => ({
+          ok: true,
+          summary: result.summary,
+          fromCache: result.fromCache,
+        }))
+        .catch((error: unknown): SummarizeTextResponse => {
+          if (error instanceof TranslationRequestError) {
+            return {
+              ok: false,
+              error: error.message,
+              retryable: error.retryable,
+              status: error.status,
+            };
+          }
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+            retryable: isRetryableError(error),
+          };
+        });
     }
 
     if (message.type !== MESSAGE_TYPES.TRANSLATE_BATCH) {

@@ -11,6 +11,11 @@ const settings: ExtensionSettings = {
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
   translationMode: 'bulk',
+  translateOnOpen: true,
+  translateOnOpenRules: [],
+  summaryPosition: 'right',
+  cacheMaxEntries: 1_000_000,
+  copyIncludeLink: true,
 };
 
 describe('translateBatchWithGeminiNative', () => {
@@ -38,9 +43,31 @@ describe('translateBatchWithGeminiNative', () => {
       response_format: TRANSLATION_RESPONSE_FORMAT,
       generation_config: expect.objectContaining({
         temperature: 0,
+        thinking_level: 'minimal',
       }),
     }));
     expect(result).toEqual([{ id: '0', text: '你好' }]);
+  });
+
+  it('uses low thinking level for pro models that reject minimal', async () => {
+    const createInteraction = vi.fn(async () => ({
+      output_text: JSON.stringify({ items: [{ id: '0', text: '你好' }] }),
+    }));
+    const clientFactory = vi.fn(() => ({ createInteraction }));
+
+    await translateBatchWithGeminiNative(
+      { ...settings, model: 'gemini-2.5-pro' },
+      [{ id: '0', text: 'hello' }],
+      'zh-CN',
+      clientFactory,
+    );
+
+    expect(createInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'gemini-2.5-pro',
+      generation_config: expect.objectContaining({
+        thinking_level: 'low',
+      }),
+    }));
   });
 
   it('retries truncated items one by one', async () => {

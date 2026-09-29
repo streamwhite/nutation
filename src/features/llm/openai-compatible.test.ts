@@ -10,6 +10,11 @@ const settings: ExtensionSettings = {
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
   translationMode: 'bulk',
+  translateOnOpen: true,
+  translateOnOpenRules: [],
+  summaryPosition: 'right',
+  cacheMaxEntries: 1_000_000,
+  copyIncludeLink: true,
 };
 
 describe('translateBatchWithOpenAI', () => {

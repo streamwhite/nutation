@@ -14,13 +14,18 @@ const settings: ExtensionSettings = {
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
   translationMode: 'bulk',
+  translateOnOpen: true,
+  translateOnOpenRules: [],
+  summaryPosition: 'right',
+  cacheMaxEntries: 1_000_000,
+  copyIncludeLink: true,
 };
 
 describe('estimateMaxTokens', () => {
   it('scales with input size and caps output', () => {
     const small = estimateMaxTokens([{ id: '0', text: 'Hello' }]);
     const large = estimateMaxTokens([{ id: '0', text: 'x'.repeat(40_000) }]);
-    expect(small).toBeGreaterThanOrEqual(API_MAX_TOKENS_FLOOR);
+    expect(small).toBe(API_MAX_TOKENS_FLOOR);
     expect(small).toBeLessThan(API_MAX_TOKENS_CEILING);
     expect(large).toBe(API_MAX_TOKENS_CEILING);
   });
@@ -36,5 +41,17 @@ describe('buildChatCompletionBody', () => {
     expect(body.max_tokens).toBeTypeOf('number');
     expect(Number(body.max_tokens)).toBeGreaterThanOrEqual(API_MAX_TOKENS_FLOOR);
     expect(Number(body.max_tokens)).toBeLessThanOrEqual(API_MAX_TOKENS_CEILING);
+  });
+
+  it('never sends models/ prefix for gemini models', () => {
+    const body = buildChatCompletionBody(
+      {
+        ...settings,
+        model: 'models/gemini-2.5-flash-lite',
+      },
+      [{ id: '0', text: 'Hello world' }],
+      'zh-CN',
+    );
+    expect(body.model).toBe('gemini-2.5-flash-lite');
   });
 });

@@ -11,7 +11,7 @@ describe('provider categories', () => {
   it('groups gateways and direct providers', () => {
     const gateways = listProvidersByCategory('gateway').map((item) => item.id);
     const direct = listProvidersByCategory('direct').map((item) => item.id);
-    expect(gateways).toEqual(['openrouter', 'groq', 'together', 'fireworks']);
+    expect(gateways).toEqual(['openrouter', 'vercel']);
     expect(direct).toContain('gemini');
     expect(direct).toContain('openai');
     expect(direct).toContain('custom');
@@ -39,9 +39,7 @@ describe('resolveProviderBaseUrl', () => {
 describe('inferProviderFromBaseUrl', () => {
   it('detects provider from base url', () => {
     expect(inferProviderFromBaseUrl('https://openrouter.ai/api/v1')).toBe('openrouter');
-    expect(inferProviderFromBaseUrl('https://api.groq.com/openai/v1')).toBe('groq');
-    expect(inferProviderFromBaseUrl('https://api.together.xyz/v1')).toBe('together');
-    expect(inferProviderFromBaseUrl('https://api.fireworks.ai/inference/v1')).toBe('fireworks');
+    expect(inferProviderFromBaseUrl('https://ai-gateway.vercel.sh/v1')).toBe('vercel');
     expect(inferProviderFromBaseUrl('https://api.deepseek.com/v1')).toBe('deepseek');
     expect(inferProviderFromBaseUrl('https://api.mistral.ai/v1')).toBe('mistral');
     expect(inferProviderFromBaseUrl('https://generativelanguage.googleapis.com/v1beta/openai'))

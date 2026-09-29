@@ -2,8 +2,13 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { browser } from 'wxt/browser';
 import {
   getCacheStoreStats,
+  trimStoreToMaxEntries,
   type CacheStoreStats,
 } from '@/features/translate/cache-store';
+import {
+  estimateCacheCapacityBytes,
+  resolveCacheMaxEntries,
+} from '@/features/translate/cache-max-entries';
 import { clearTranslationCache } from '@/features/translate/cache';
 import { bindLanguagePicker } from '@/features/options/language-picker';
 import { findTargetLanguage } from '@/shared/languages';
@@ -16,13 +21,23 @@ import {
   type ProviderId,
 } from '@/shared/providers';
 import { formatBytes } from '@/shared/format-bytes';
-import { STORAGE_KEYS } from '@/shared/constants';
+import {
+  STORAGE_KEYS,
+  TRANSLATION_CACHE_ENTRIES_HARD_LIMIT,
+  TRANSLATION_CACHE_MAX_ENTRIES,
+  TRANSLATION_CACHE_MIN_ENTRIES,
+} from '@/shared/constants';
 import {
   loadSettings,
   parseSettings,
   saveSettings,
   type ExtensionSettings,
 } from '@/shared/settings';
+import {
+  createEmptyTranslateOnOpenRule,
+  readTranslateOnOpenRulesFromRoot,
+  renderTranslateOnOpenRuleRow,
+} from '@/features/options/translate-on-open-ui';
 import {
   TRANSLATION_MODES,
   TRANSLATION_MODE_LABELS,
@@ -47,18 +62,30 @@ const targetLangResults = document.querySelector<HTMLElement>('#target-lang-resu
 const translationModeSelect = document.querySelector<HTMLSelectElement>('#translation-mode');
 const translationModeHelp = document.querySelector<HTMLElement>('#translation-mode-help');
 const summaryPositionSelect = document.querySelector<HTMLSelectElement>('#summary-position');
+const copyIncludeLinkInput = document.querySelector<HTMLInputElement>('#copy-include-link');
 const autoRecoverInput = document.querySelector<HTMLInputElement>('#auto-recover');
+const translateOnOpenInput = document.querySelector<HTMLInputElement>('#translate-on-open');
+const translateOnOpenRulesRoot = document.querySelector<HTMLElement>('#translate-on-open-rules');
+const addTranslateOnOpenRuleBtn = document.querySelector<HTMLButtonElement>('#add-translate-on-open-rule');
+const saveTranslateOnOpenBtn = document.querySelector<HTMLButtonElement>('#save-translate-on-open');
+const translateOnOpenAlert = document.querySelector<HTMLElement>('#translate-on-open-alert');
+const translateOnOpenError = document.querySelector<HTMLElement>('#translate-on-open-error');
 const saveBtn = form?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null;
 const saveAlert = document.querySelector<HTMLElement>('#save-alert');
 const saveError = document.querySelector<HTMLElement>('#save-error');
+const cacheMaxEntriesInput = document.querySelector<HTMLInputElement>('#cache-max-entries');
+const cacheMaxEntriesEstimateEl = document.querySelector<HTMLElement>('#cache-max-entries-estimate');
 const cacheEntryCountEl = document.querySelector<HTMLElement>('#cache-entry-count');
 const cacheDataSizeEl = document.querySelector<HTMLElement>('#cache-data-size');
 const cacheCapacityEstimateEl = document.querySelector<HTMLElement>('#cache-capacity-estimate');
 const cacheStorageUsageEl = document.querySelector<HTMLElement>('#cache-storage-usage');
+const saveCacheSettingsBtn = document.querySelector<HTMLButtonElement>('#save-cache-settings-btn');
 const clearCacheBtn = document.querySelector<HTMLButtonElement>('#clear-cache-btn');
+const cacheSaveAlert = document.querySelector<HTMLElement>('#cache-save-alert');
 const cacheErrorEl = document.querySelector<HTMLElement>('#cache-error');
 
 let languagePickerBound = false;
+let configuredCacheMaxEntries = TRANSLATION_CACHE_MAX_ENTRIES;
 
 function setCacheError(message: string | null): void {
   if (!cacheErrorEl) {
@@ -88,6 +115,45 @@ function formatStorageUsage(stats: CacheStoreStats): string {
   return `${formatBytes(stats.storageUsageBytes)} / ${formatBytes(stats.storageQuotaBytes)}`;
 }
 
+function formatCapacityEstimate(maxEntries: number): string {
+  const limit = resolveCacheMaxEntries(maxEntries);
+  return `Estimated space at full capacity: ${formatBytes(estimateCacheCapacityBytes(limit))}`;
+}
+
+function updateCacheMaxEntriesEstimate(): void {
+  if (!cacheMaxEntriesEstimateEl || !cacheMaxEntriesInput) {
+    return;
+  }
+  cacheMaxEntriesEstimateEl.textContent = formatCapacityEstimate(cacheMaxEntriesInput.value);
+}
+
+function bindCacheMaxEntriesInput(): void {
+  if (!cacheMaxEntriesInput) {
+    return;
+  }
+  cacheMaxEntriesInput.min = String(TRANSLATION_CACHE_MIN_ENTRIES);
+  cacheMaxEntriesInput.max = String(TRANSLATION_CACHE_ENTRIES_HARD_LIMIT);
+  cacheMaxEntriesInput.step = String(TRANSLATION_CACHE_MIN_ENTRIES);
+  cacheMaxEntriesInput.addEventListener('input', () => {
+    updateCacheMaxEntriesEstimate();
+  });
+}
+
+function fillCacheMaxEntries(maxEntries: number): void {
+  configuredCacheMaxEntries = resolveCacheMaxEntries(maxEntries);
+  if (cacheMaxEntriesInput) {
+    cacheMaxEntriesInput.value = String(configuredCacheMaxEntries);
+  }
+  updateCacheMaxEntriesEstimate();
+}
+
+function readCacheMaxEntriesField(): number {
+  if (!cacheMaxEntriesInput) {
+    return configuredCacheMaxEntries;
+  }
+  return resolveCacheMaxEntries(cacheMaxEntriesInput.value, configuredCacheMaxEntries);
+}
+
 function renderCacheStats(stats: CacheStoreStats): void {
   if (cacheEntryCountEl) {
     cacheEntryCountEl.textContent = formatEntryCount(stats);
@@ -103,13 +169,43 @@ function renderCacheStats(stats: CacheStoreStats): void {
   }
 }
 
-async function refreshCacheStats(): Promise<void> {
+async function refreshCacheStats(maxEntries = configuredCacheMaxEntries): Promise<void> {
   try {
-    const stats = await getCacheStoreStats();
+    const stats = await getCacheStoreStats(maxEntries);
     renderCacheStats(stats);
     setCacheError(null);
   } catch (error) {
     setCacheError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleSaveCacheSettings(): Promise<void> {
+  if (saveCacheSettingsBtn) {
+    saveCacheSettingsBtn.disabled = true;
+  }
+  setCacheError(null);
+  cacheSaveAlert?.classList.add('d-none');
+
+  try {
+    const cacheMaxEntries = readCacheMaxEntriesField();
+    const current = await loadSettings();
+    const saved = await saveSettings({
+      ...current,
+      cacheMaxEntries,
+    });
+    fillCacheMaxEntries(saved.cacheMaxEntries);
+    await trimStoreToMaxEntries(saved.cacheMaxEntries);
+    await refreshCacheStats(saved.cacheMaxEntries);
+    cacheSaveAlert?.classList.remove('d-none');
+    window.setTimeout(() => {
+      cacheSaveAlert?.classList.add('d-none');
+    }, 2500);
+  } catch (error) {
+    setCacheError(error instanceof Error ? error.message : String(error));
+  } finally {
+    if (saveCacheSettingsBtn) {
+      saveCacheSettingsBtn.disabled = false;
+    }
   }
 }
 
@@ -202,10 +298,63 @@ function ensureLanguagePicker(initialCode: string): void {
   syncLanguagePicker(initialCode);
 }
 
+function setTranslateOnOpenError(message: string | null): void {
+  if (!translateOnOpenError) {
+    if (message) {
+      console.error(message);
+    }
+    return;
+  }
+  if (!message) {
+    translateOnOpenError.classList.add('d-none');
+    translateOnOpenError.textContent = '';
+    return;
+  }
+  translateOnOpenError.classList.remove('d-none');
+  translateOnOpenError.textContent = message;
+}
+
+function readTranslateOnOpenFields(): Pick<
+  ExtensionSettings,
+  'translateOnOpen' | 'translateOnOpenRules'
+> {
+  return {
+    translateOnOpen: translateOnOpenInput?.checked !== false,
+    translateOnOpenRules: translateOnOpenRulesRoot
+      ? readTranslateOnOpenRulesFromRoot(translateOnOpenRulesRoot)
+      : [],
+  };
+}
+
+function appendTranslateOnOpenRule(
+  rule = createEmptyTranslateOnOpenRule(),
+): void {
+  if (!translateOnOpenRulesRoot) {
+    return;
+  }
+  const row = renderTranslateOnOpenRuleRow(rule, (target) => {
+    target.remove();
+  });
+  translateOnOpenRulesRoot.append(row);
+}
+
+function fillTranslateOnOpen(settings: ExtensionSettings): void {
+  if (translateOnOpenInput) {
+    translateOnOpenInput.checked = settings.translateOnOpen;
+  }
+  if (!translateOnOpenRulesRoot) {
+    return;
+  }
+  translateOnOpenRulesRoot.replaceChildren();
+  for (const rule of settings.translateOnOpenRules) {
+    appendTranslateOnOpenRule(rule);
+  }
+}
+
 function fillForm(settings: ExtensionSettings): void {
   if (!providerSelect || !apiKeyInput || !modelInput
     || !targetLangInput || !translationModeSelect || !autoRecoverInput
-    || !summaryPositionSelect) {
+    || !summaryPositionSelect || !copyIncludeLinkInput) {
     return;
   }
 
@@ -220,13 +369,16 @@ function fillForm(settings: ExtensionSettings): void {
   updateTranslationModeHelp(settings.translationMode);
   summaryPositionSelect.value = settings.summaryPosition;
   autoRecoverInput.checked = settings.autoRecoverContentScript;
+  copyIncludeLinkInput.checked = settings.copyIncludeLink;
   applyProviderUi(settings.provider);
+  fillTranslateOnOpen(settings);
+  fillCacheMaxEntries(settings.cacheMaxEntries);
 }
 
 function readForm(): ExtensionSettings {
   if (!providerSelect || !apiKeyInput || !modelInput
     || !targetLangInput || !translationModeSelect || !autoRecoverInput
-    || !summaryPositionSelect) {
+    || !summaryPositionSelect || !copyIncludeLinkInput) {
     throw new Error('Settings form is missing required fields.');
   }
 
@@ -249,8 +401,38 @@ function readForm(): ExtensionSettings {
     targetLang,
     translationMode: translationModeSelect.value as TranslationMode,
     autoRecoverContentScript: autoRecoverInput.checked,
+    ...readTranslateOnOpenFields(),
     summaryPosition: summaryPositionSelect.value as SummaryPosition,
+    cacheMaxEntries: readCacheMaxEntriesField(),
+    copyIncludeLink: copyIncludeLinkInput.checked,
   };
+}
+
+async function handleSaveTranslateOnOpen(): Promise<void> {
+  setTranslateOnOpenError(null);
+  translateOnOpenAlert?.classList.add('d-none');
+  if (saveTranslateOnOpenBtn) {
+    saveTranslateOnOpenBtn.disabled = true;
+  }
+
+  try {
+    const current = await loadSettings();
+    const saved = await saveSettings({
+      ...current,
+      ...readTranslateOnOpenFields(),
+    });
+    fillTranslateOnOpen(saved);
+    translateOnOpenAlert?.classList.remove('d-none');
+    window.setTimeout(() => {
+      translateOnOpenAlert?.classList.add('d-none');
+    }, 2500);
+  } catch (error) {
+    setTranslateOnOpenError(error instanceof Error ? error.message : String(error));
+  } finally {
+    if (saveTranslateOnOpenBtn) {
+      saveTranslateOnOpenBtn.disabled = false;
+    }
+  }
 }
 
 async function handleSave(): Promise<void> {
@@ -261,8 +443,13 @@ async function handleSave(): Promise<void> {
   }
 
   try {
+    const previousMax = configuredCacheMaxEntries;
     const saved = await saveSettings(readForm());
     fillForm(saved);
+    if (saved.cacheMaxEntries < previousMax) {
+      await trimStoreToMaxEntries(saved.cacheMaxEntries);
+    }
+    await refreshCacheStats(saved.cacheMaxEntries);
     saveAlert?.classList.remove('d-none');
     window.setTimeout(() => {
       saveAlert?.classList.add('d-none');
@@ -318,7 +505,20 @@ function init(): void {
     void handleClearCache();
   });
 
+  saveCacheSettingsBtn?.addEventListener('click', () => {
+    void handleSaveCacheSettings();
+  });
+
+  addTranslateOnOpenRuleBtn?.addEventListener('click', () => {
+    appendTranslateOnOpenRule();
+  });
+
+  saveTranslateOnOpenBtn?.addEventListener('click', () => {
+    void handleSaveTranslateOnOpen();
+  });
+
   populateProviderSelect();
+  bindCacheMaxEntriesInput();
 
   for (const mode of TRANSLATION_MODES) {
     const option = document.createElement('option');
@@ -340,17 +540,19 @@ function init(): void {
 
   void loadSettings().then((settings) => {
     fillForm(settings);
+    void refreshCacheStats(settings.cacheMaxEntries);
   }).catch((error: unknown) => {
     setSaveError(error instanceof Error ? error.message : String(error));
+    void refreshCacheStats();
   });
-
-  void refreshCacheStats();
 
   void browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local' || !changes[STORAGE_KEYS.SETTINGS]?.newValue) {
       return;
     }
-    fillForm(parseSettings(changes[STORAGE_KEYS.SETTINGS].newValue));
+    const settings = parseSettings(changes[STORAGE_KEYS.SETTINGS].newValue);
+    fillForm(settings);
+    void refreshCacheStats(settings.cacheMaxEntries);
   });
 }
 

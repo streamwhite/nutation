@@ -17,15 +17,27 @@ function classTokens(element: Element): string[] {
   return tokens;
 }
 
+function isWordpressTaxonomyToken(token: string): boolean {
+  if (token.startsWith('tag-')) {
+    return true;
+  }
+  return token.startsWith('category-') && token !== 'category-list';
+}
+
 function matchesToken(tokens: string[], needles: readonly string[]): boolean {
-  return tokens.some((token) => needles.some((needle) => {
-    if (token === needle) {
-      return true;
+  return tokens.some((token) => {
+    if (isWordpressTaxonomyToken(token)) {
+      return false;
     }
-    return token.startsWith(`${needle}-`)
-      || token.endsWith(`-${needle}`)
-      || token.includes(`-${needle}-`);
-  }));
+    return needles.some((needle) => {
+      if (token === needle) {
+        return true;
+      }
+      return token.startsWith(`${needle}-`)
+        || token.endsWith(`-${needle}`)
+        || token.includes(`-${needle}-`);
+    });
+  });
 }
 
 function hasAncestorMatch(

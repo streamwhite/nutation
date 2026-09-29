@@ -23,12 +23,6 @@ export type CacheHitStats = {
   lookups: number;
 };
 
-function cacheModelFor(item: TextChunk, targetLang: string, model: string): string {
-  return shouldUseOpenCC(item.text, targetLang, item.sourceLang)
-    ? getOpenCCCacheModel()
-    : model;
-}
-
 export class InPageTranslator {
   private readonly sessionCache = new Map<string, string>();
   private readonly inflight = new Map<string, Promise<string>>();
@@ -40,7 +34,16 @@ export class InPageTranslator {
     private readonly settings: ExtensionSettings,
     private readonly targetLang: string,
     private readonly timing: StageTimer,
+    private readonly pageLang = '',
   ) {}
+
+  private usesOpenCC(item: TextChunk): boolean {
+    return shouldUseOpenCC(item.text, this.targetLang, item.sourceLang?.trim() || this.pageLang);
+  }
+
+  private cacheModelFor(item: TextChunk): string {
+    return this.usesOpenCC(item) ? getOpenCCCacheModel(this.targetLang) : this.settings.model;
+  }
 
   getCacheStats(): CacheHitStats {
     return {
@@ -71,7 +74,7 @@ export class InPageTranslator {
       const next: TextChunk = item.sourceLang
         ? { id: item.id, text: normalized, sourceLang: item.sourceLang }
         : { id: item.id, text: normalized };
-      const model = cacheModelFor(next, this.targetLang, this.settings.model);
+      const model = this.cacheModelFor(next);
       const key = buildCacheKey(normalized, this.targetLang, model);
       this.cacheLookups += 1;
       const cached = this.sessionCache.get(key);
@@ -92,12 +95,8 @@ export class InPageTranslator {
       return { translations: hits, fromCache: hits.length, fromApi: 0 };
     }
 
-    const localItems = missing.filter((item) => (
-      shouldUseOpenCC(item.text, this.targetLang, item.sourceLang)
-    ));
-    const remoteItems = missing.filter((item) => (
-      !shouldUseOpenCC(item.text, this.targetLang, item.sourceLang)
-    ));
+    const localItems = missing.filter((item) => this.usesOpenCC(item));
+    const remoteItems = missing.filter((item) => !this.usesOpenCC(item));
 
     const fresh: TextChunk[] = [];
 
@@ -105,7 +104,7 @@ export class InPageTranslator {
       this.timing.start('opencc_convert');
       try {
         const converted = await this.resolveItems(localItems, async (items) => (
-          convertBatchWithOpenCC(items)
+          convertBatchWithOpenCC(items, this.targetLang)
         ));
         fresh.push(...converted);
       } finally {
@@ -150,7 +149,7 @@ export class InPageTranslator {
   ): Promise<void> {
     const byModel = new Map<string, TextChunk[]>();
     for (const item of missing) {
-      const model = cacheModelFor(item, this.targetLang, this.settings.model);
+      const model = this.cacheModelFor(item);
       const group = byModel.get(model) ?? [];
       group.push(item);
       byModel.set(model, group);
@@ -191,7 +190,7 @@ export class InPageTranslator {
     const waiters: Array<Promise<TextChunk>> = [];
 
     for (const item of items) {
-      const model = cacheModelFor(item, this.targetLang, this.settings.model);
+      const model = this.cacheModelFor(item);
       const key = buildCacheKey(item.text, this.targetLang, model);
       const sessionHit = this.sessionCache.get(key);
       if (sessionHit) {
@@ -216,7 +215,7 @@ export class InPageTranslator {
       const firstIdByKey = new Map<string, string>();
 
       for (const item of toFetch) {
-        const model = cacheModelFor(item, this.targetLang, this.settings.model);
+        const model = this.cacheModelFor(item);
         const key = buildCacheKey(item.text, this.targetLang, model);
         const existingId = firstIdByKey.get(key);
         if (!existingId) {
@@ -240,7 +239,7 @@ export class InPageTranslator {
           if (typeof text !== 'string') {
             continue;
           }
-          const model = cacheModelFor(item, this.targetLang, this.settings.model);
+          const model = this.cacheModelFor(item);
           const key = buildCacheKey(item.text, this.targetLang, model);
           this.sessionCache.set(key, text);
           this.inflight.delete(key);
@@ -251,7 +250,7 @@ export class InPageTranslator {
         return translations;
       }).catch((error: unknown) => {
         for (const item of uniqueFetch) {
-          const model = cacheModelFor(item, this.targetLang, this.settings.model);
+          const model = this.cacheModelFor(item);
           const key = buildCacheKey(item.text, this.targetLang, model);
           this.inflight.delete(key);
         }
@@ -259,7 +258,7 @@ export class InPageTranslator {
       });
 
       for (const item of uniqueFetch) {
-        const model = cacheModelFor(item, this.targetLang, this.settings.model);
+        const model = this.cacheModelFor(item);
         const key = buildCacheKey(item.text, this.targetLang, model);
         this.inflight.set(key, fetchPromise.then((translations) => {
           const match = translations.find((entry) => entry.id === item.id);

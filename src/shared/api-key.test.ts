@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   API_KEY_MISSING_MESSAGE,
   hasApiKey,
+  resolveDefaultApiKey,
 } from '@/shared/api-key';
 
 describe('hasApiKey', () => {
@@ -12,6 +13,27 @@ describe('hasApiKey', () => {
 
   it('accepts a configured key', () => {
     expect(hasApiKey({ apiKey: 'sk-test' })).toBe(true);
+  });
+});
+
+describe('resolveDefaultApiKey', () => {
+  it('returns env key only in development', () => {
+    expect(resolveDefaultApiKey({
+      DEV: true,
+      VITE_DEV_API_KEY: ' sk-dev ',
+    })).toBe('sk-dev');
+    expect(resolveDefaultApiKey({
+      MODE: 'development',
+      VITE_DEV_API_KEY: 'sk-dev',
+    })).toBe('sk-dev');
+  });
+
+  it('ignores env key outside development', () => {
+    expect(resolveDefaultApiKey({
+      DEV: false,
+      MODE: 'production',
+      VITE_DEV_API_KEY: 'sk-dev',
+    })).toBe('');
   });
 });
 

@@ -54,6 +54,13 @@ export function isTraditionalChineseLang(lang: string): boolean {
   return region === 'tw' || region === 'hk' || region === 'mo';
 }
 
+const HAN_PATTERN = /\p{Script=Han}/u;
+const KANA_PATTERN = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+export function containsHanText(text: string): boolean {
+  return HAN_PATTERN.test(text);
+}
+
 export function isPrimarilyChineseText(text: string): boolean {
   const hanCount = text.match(/\p{Script=Han}/gu)?.length ?? 0;
   if (hanCount === 0) {
@@ -63,20 +70,25 @@ export function isPrimarilyChineseText(text: string): boolean {
   return hanCount >= latinCount;
 }
 
+function isChineseLang(lang: string): boolean {
+  return isSimplifiedChineseTarget(lang) || isTraditionalChineseLang(lang);
+}
+
 export function shouldUseOpenCC(
   text: string,
   targetLang: string,
   sourceLang?: string,
 ): boolean {
-  if (!isSimplifiedChineseTarget(targetLang) || !isPrimarilyChineseText(text)) {
+  if (!isChineseLang(targetLang)) {
     return false;
   }
-  if (!sourceLang?.trim()) {
+  if (!containsHanText(text) || KANA_PATTERN.test(text)) {
+    return false;
+  }
+  if (sourceLang?.trim() && isChineseLang(sourceLang)) {
     return true;
   }
-  return isTraditionalChineseLang(sourceLang)
-    || isSimplifiedChineseTarget(sourceLang)
-    || !normalizeLangTag(sourceLang).startsWith('zh');
+  return isPrimarilyChineseText(text);
 }
 
 export function resolveElementLang(element: Element | null | undefined): string {

@@ -35,7 +35,11 @@ describe('saveSettings', () => {
       targetLang: 'zh-CN',
       autoRecoverContentScript: true,
       translationMode: 'bulk',
+      translateOnOpen: true,
+      translateOnOpenRules: [],
       summaryPosition: 'right',
+      cacheMaxEntries: 1_000_000,
+      copyIncludeLink: true,
     });
 
     expect(saved.baseUrl).toBe('https://openrouter.ai/api/v1');
@@ -70,21 +74,26 @@ describe('loadSettings model normalization', () => {
     });
   });
 
-  it('rewrites stored gemini-3.1-flash-lite to gemini-2.5-flash-lite', async () => {
-    storage.set(STORAGE_KEYS.SETTINGS, {
+  it('persists user-selected gemini model without rewriting to default', async () => {
+    const { saveSettings } = await import('@/shared/settings');
+    const saved = await saveSettings({
       provider: 'gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
       apiKey: 'secret',
       model: 'gemini-3.1-flash-lite',
       targetLang: 'zh-CN',
+      autoRecoverContentScript: true,
+      translationMode: 'bulk',
+      translateOnOpen: true,
+      translateOnOpenRules: [],
+      summaryPosition: 'right',
+      cacheMaxEntries: 1_000_000,
+      copyIncludeLink: true,
     });
 
-    const { loadSettings } = await import('@/shared/settings');
-    const loaded = await loadSettings();
-
-    expect(loaded.model).toBe('gemini-2.5-flash-lite');
+    expect(saved.model).toBe('gemini-3.1-flash-lite');
     expect(storage.get(STORAGE_KEYS.SETTINGS)).toMatchObject({
-      model: 'gemini-2.5-flash-lite',
+      model: 'gemini-3.1-flash-lite',
     });
   });
 });

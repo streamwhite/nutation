@@ -1,7 +1,14 @@
 import { PageTranslator } from '@/features/translate/page-translator';
-import type { ContentScriptMessage } from '@/features/translate/types';
+import { summarizeCurrentPage } from '@/features/summarize/page-summarize';
+import { buildTranslatedPageInfo } from '@/features/copy-page/copy-page';
+import { bindTranslateOnOpen } from '@/features/translate-on-open/auto-start';
+import type {
+  ContentScriptMessage,
+  CopyPageInfoResponse,
+} from '@/features/translate/types';
 import { MESSAGE_TYPES } from '@/shared/constants';
 import { loadSettings } from '@/shared/settings';
+import { getUiStrings } from '@/shared/ui-strings';
 
 const translator = new PageTranslator();
 
@@ -33,7 +40,40 @@ export default defineContentScript({
         return Promise.resolve(translator.getStatus());
       }
 
+      if (message.type === MESSAGE_TYPES.SUMMARIZE_PAGE) {
+        if (window !== window.top) {
+          return Promise.resolve({
+            ok: false,
+            error: getUiStrings().popup.summarizeTopFrameOnly,
+          });
+        }
+        return loadSettings().then((settings) => summarizeCurrentPage(settings));
+      }
+
+      if (message.type === MESSAGE_TYPES.COPY_PAGE_INFO) {
+        if (window !== window.top) {
+          return Promise.resolve({
+            ok: false,
+            error: getUiStrings().popup.copyTopFrameOnly,
+          });
+        }
+        return loadSettings()
+          .then((settings) => buildTranslatedPageInfo(
+            settings,
+            message.targetLang || settings.targetLang,
+          ))
+          .then((text): CopyPageInfoResponse => ({ ok: true, text }))
+          .catch((error: unknown): CopyPageInfoResponse => ({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }));
+      }
+
       return undefined;
     });
+
+    if (window === window.top) {
+      bindTranslateOnOpen(translator);
+    }
   },
 });

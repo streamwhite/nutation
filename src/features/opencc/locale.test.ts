@@ -57,6 +57,11 @@ describe('shouldUseOpenCC', () => {
     expect(shouldUseOpenCC('臺灣軟體', 'zh-CN')).toBe(true);
   });
 
+  it('uses opencc for chinese text targeting zh-TW', () => {
+    expect(shouldUseOpenCC('台湾软件', 'zh-TW')).toBe(true);
+    expect(shouldUseOpenCC('软件', 'zh-TW', 'zh-CN')).toBe(true);
+  });
+
   it('uses opencc when source lang is a traditional variant', () => {
     expect(shouldUseOpenCC('軟體', 'zh-CN', 'zh-Hant-TW')).toBe(true);
     expect(shouldUseOpenCC('軟體', 'zh-CN', 'zh-TW')).toBe(true);
@@ -64,7 +69,18 @@ describe('shouldUseOpenCC', () => {
 
   it('keeps english on the llm path', () => {
     expect(shouldUseOpenCC('Hello world', 'zh-CN')).toBe(false);
+    expect(shouldUseOpenCC('Hello world', 'zh-TW')).toBe(false);
     expect(shouldUseOpenCC('Hello world', 'zh-CN', 'zh-Hant-TW')).toBe(false);
+  });
+
+  it('uses opencc for mixed chinese text when the source is a chinese variant', () => {
+    expect(shouldUseOpenCC('iPhone 15 Pro 開箱評測', 'zh-CN', 'zh-TW')).toBe(true);
+    expect(shouldUseOpenCC('台積電 TSMC 2330', 'zh-CN', 'zh-Hant-TW')).toBe(true);
+  });
+
+  it('keeps japanese text on the llm path', () => {
+    expect(shouldUseOpenCC('東京タワー', 'zh-CN')).toBe(false);
+    expect(shouldUseOpenCC('東京タワー', 'zh-CN', 'ja')).toBe(false);
   });
 });
 

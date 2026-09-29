@@ -72,13 +72,64 @@ export type EnsureContentScriptResponse = {
   error?: string;
 };
 
+export type SummarizePageRequest = {
+  type: typeof MESSAGE_TYPES.SUMMARIZE_PAGE;
+  targetLang?: string;
+};
+
+export type CopyPageInfoRequest = {
+  type: typeof MESSAGE_TYPES.COPY_PAGE_INFO;
+  targetLang?: string;
+};
+
+export type CopyPageInfoResponse = {
+  ok: true;
+  text: string;
+} | {
+  ok: false;
+  error: string;
+};
+
+export type SummarizePageResponse = {
+  ok: true;
+  summary: string;
+  isListingFeed: boolean;
+  fromCache: boolean;
+} | {
+  ok: false;
+  error: string;
+};
+
+export type SummarizeTextRequest = {
+  type: typeof MESSAGE_TYPES.SUMMARIZE_TEXT;
+  text: string;
+  pageUrl: string;
+  targetLang: string;
+  settings: ExtensionSettings;
+  isListingFeed?: boolean;
+};
+
+export type SummarizeTextResponse = {
+  ok: true;
+  summary: string;
+  fromCache: boolean;
+} | {
+  ok: false;
+  error: string;
+  retryable?: boolean;
+  status?: number | null;
+};
+
 export type ContentScriptMessage =
   | StartTranslateRequest
   | StopTranslateRequest
-  | GetTabStatusRequest;
+  | GetTabStatusRequest
+  | SummarizePageRequest
+  | CopyPageInfoRequest;
 
 export type BackgroundMessage =
   | TranslateBatchRequest
   | WarmProviderRequest
   | PersistTranslationsRequest
-  | EnsureContentScriptRequest;
+  | EnsureContentScriptRequest
+  | SummarizeTextRequest;

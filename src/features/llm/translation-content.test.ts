@@ -60,6 +60,11 @@ describe('parseTranslationContent', () => {
     ]);
   });
 
+  it('returns empty list when truncated mid first item', () => {
+    const truncated = '{"items":[{"id":"14","text":"Meta否认使用AI解雇残疾和有';
+    expect(parseTranslationContent(truncated)).toEqual([]);
+  });
+
   it('parses json items whose text contains pipe characters', () => {
     const content = [
       '```json',

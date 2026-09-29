@@ -40,14 +40,14 @@ describe('isMetadataElement', () => {
     expect(isMetadataElement(document.getElementById('keep'))).toBe(false);
   });
 
-  it('does not treat wordpress status-publish cards as metadata', () => {
+  it('does not treat wordpress taxonomy classes like tag-meta as metadata', () => {
     document.body.innerHTML = `
-      <article class="relative group card-list-square post-2162496 post type-post status-publish format-standard">
-        <h2 id="headline">Flores Hobbits eating habits</h2>
-        <p id="deck">Summary copy for the story card.</p>
+      <article class="relative group card-list-square post-2163055 post type-post status-publish format-standard has-post-thumbnail hentry category-ai category-tech-policy tag-meta">
+        <a id="headline" class="text-gray-700">Lawsuit claims Meta’s layoff decisions were made by AI, not humans</a>
+        <p id="deck">Meta denies using AI to terminate workers with disabilities and medical problems.</p>
       </article>
       <div class="post-meta">
-        <span class="author">Jane Doe</span>
+        <span class="author">Jon Brodkin</span>
       </div>
     `;
 

@@ -57,7 +57,6 @@ export const METADATA_CLASS_TOKENS = [
   'timestamp',
   'date',
   'datetime',
-  'meta',
   'post-meta',
   'entry-meta',
   'article-meta',
@@ -134,10 +133,14 @@ export const TRANSLATE_BATCH_MAX_CHARS = 700;
 export const TRANSLATE_FAST_LANE_BATCH_SIZE = 1;
 export const TRANSLATE_FAST_LANE_MAX_CHARS = 120;
 export const TRANSLATE_CONCURRENCY = 10;
-export const API_MAX_TOKENS_FLOOR = 192;
+export const API_MAX_TOKENS_FLOOR = 512;
 export const API_MAX_TOKENS_CEILING = 65_536;
 export const API_MAX_TOKENS_CHAR_RATIO = 2;
-export const API_MAX_TOKENS_OVERHEAD = 64;
+export const API_MAX_TOKENS_OVERHEAD = 256;
+export const GEMINI_THINKING_LEVEL = 'minimal' as const;
+// Pro models only accept 'low' | 'high' for thinking_level.
+export const GEMINI_PRO_THINKING_LEVEL = 'low' as const;
+export const GEMINI_PRO_MODEL_PATTERN = /-pro\b/;
 export const TRANSLATE_BULK_BATCH_SIZE = 40;
 export const TRANSLATE_BULK_BATCH_MAX_CHARS = 2_400;
 export const TRANSLATE_BULK_INCREMENTAL_BATCH_SIZE = 6;
@@ -151,10 +154,19 @@ export const RETRYABLE_HTTP_STATUSES = [429, 502, 503, 504] as const;
 export const MIN_TRANSLATE_TEXT_LENGTH = 2;
 export const INTERSECTION_ROOT_MARGIN = '400px';
 export const MEMORY_CACHE_MAX_ENTRIES = 800;
-export const TRANSLATION_CACHE_MAX_ENTRIES = 500_000;
+export const TRANSLATION_CACHE_MAX_ENTRIES = 1_000_000;
+export const TRANSLATION_CACHE_MIN_ENTRIES = 1_000;
+export const TRANSLATION_CACHE_ENTRIES_HARD_LIMIT = 5_000_000;
 export const ESTIMATED_AVG_CACHE_ENTRY_BYTES = 320;
 export const TRANSLATION_CACHE_DB_NAME = 'page-translate-cache';
 export const TRANSLATION_CACHE_STORE_NAME = 'translations';
+export const SUMMARY_CACHE_STORE_NAME = 'summaries';
+export const SUMMARY_CACHE_STORAGE_PREFIX = 'summary-cache:';
+export const SUMMARY_CACHE_MAX_ENTRIES = 2_000;
+export const SUMMARY_CACHE_ENTRIES_HARD_LIMIT = 20_000;
+export const SUMMARY_CACHE_DB_VERSION = 2;
+export const SUMMARY_MEMORY_CACHE_MAX_ENTRIES = 100;
+export const CACHE_LRU_TOUCH_DEBOUNCE_MS = 250;
 
 export const CONTENT_SCRIPT_RETRY_DELAY_MS = 150;
 export const CONTENT_SCRIPT_PING_ATTEMPTS = 10;
@@ -174,7 +186,37 @@ export const MESSAGE_TYPES = {
   STOP_TRANSLATE: 'STOP_TRANSLATE',
   GET_TAB_STATUS: 'GET_TAB_STATUS',
   ENSURE_CONTENT_SCRIPT: 'ENSURE_CONTENT_SCRIPT',
+  SUMMARIZE_PAGE: 'SUMMARIZE_PAGE',
+  SUMMARIZE_TEXT: 'SUMMARIZE_TEXT',
+  COPY_PAGE_INFO: 'COPY_PAGE_INFO',
 } as const;
+
+export const PAGE_INFO_SEPARATOR = ':';
+
+// Query params stripped from copied page links: utm_* plus common ad/click ids.
+export const TRACKING_QUERY_PARAM_PREFIXES = ['utm_'] as const;
+export const TRACKING_QUERY_PARAMS = new Set([
+  'fbclid',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'msclkid',
+  'dclid',
+  'twclid',
+  'yclid',
+  'igshid',
+  'mc_cid',
+  'mc_eid',
+  'ref_src',
+  'srsltid',
+  '_hsenc',
+  '_hsmi',
+]);
+
+export const SUMMARIZE_OVERLAY_ROOT_ID = 'page-translate-summary-overlay';
+export const SUMMARIZE_PREFS_STORAGE_KEY = 'page-translate-summary-prefs';
+export const SUMMARIZE_MAX_CHARS_DEFAULT = 60_000;
+export const SUMMARIZE_MAX_OUTPUT_TOKENS = 2_048;
 
 export const CONTEXT_MENU_TRANSLATE_ID = 'page-translate-translate-page';
 export const CONTEXT_MENU_TRANSLATE_TITLE = 'Translate page';
@@ -186,9 +228,14 @@ export const STORAGE_KEYS = {
 export const POPUP_STATUS_POLL_MS = 400;
 export const TIMING_LOG_PREFIX = '[PageTranslate:timing]';
 
-export const OPENCC_FROM_LOCALE = 'twp';
-export const OPENCC_TO_LOCALE = 'cn';
-export const OPENCC_CACHE_MODEL = 'opencc-tw2sp';
+export const OPENCC_T2S_FROM = 'twp';
+export const OPENCC_T2S_TO = 'cn';
+export const OPENCC_S2T_FROM = 'cn';
+export const OPENCC_S2T_TO = 'twp';
+export const OPENCC_S2T_HK_TO = 'hk';
+export const OPENCC_CACHE_MODEL_T2S = 'opencc-tw2sp';
+export const OPENCC_CACHE_MODEL_S2T = 'opencc-cn2twp';
+export const OPENCC_CACHE_MODEL_S2T_HK = 'opencc-cn2hk';
 export const SIMPLIFIED_CHINESE_LANG_TAGS = [
   'zh-cn',
   'zh-hans',

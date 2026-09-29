@@ -76,4 +76,21 @@ describe('ensureCompleteTranslations', () => {
 
     expect(result).toEqual([{ id: '0', text: '你好' }]);
   });
+
+  it('retries when the first pass returns no parsed items', async () => {
+    const translate = vi.fn(async (batch: Array<{ id: string; text: string }>) => {
+      if (translate.mock.calls.length === 1) {
+        return [];
+      }
+      return batch.map((item) => ({ id: item.id, text: `译:${item.text}` }));
+    });
+
+    const result = await ensureCompleteTranslations(
+      [{ id: '14', text: 'Meta denies using AI to terminate workers.' }],
+      translate,
+    );
+
+    expect(result).toEqual([{ id: '14', text: '译:Meta denies using AI to terminate workers.' }]);
+    expect(translate).toHaveBeenCalledTimes(2);
+  });
 });

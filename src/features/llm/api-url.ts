@@ -1,3 +1,5 @@
+import { stripGeminiModelsPrefix } from '@/shared/providers';
+
 const CHAT_COMPLETIONS_SUFFIX = '/chat/completions';
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 
@@ -97,7 +99,8 @@ export function buildGeminiApiRoot(baseUrl: string): string {
 
 export function buildGeminiGenerateContentUrl(baseUrl: string, model: string): string {
   const root = buildGeminiApiRoot(baseUrl);
-  return `${root}/models/${encodeURIComponent(model)}:generateContent`;
+  const modelId = stripGeminiModelsPrefix(model);
+  return `${root}/models/${encodeURIComponent(modelId)}:generateContent`;
 }
 
 export function buildGeminiInteractionsUrl(baseUrl: string): string {

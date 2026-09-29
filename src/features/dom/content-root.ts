@@ -198,5 +198,5 @@ export function findMainContentRoot(
 }
 
 export function findCollectionRoot(doc: Document = document): Element {
-  return findMainContentRoot(doc);
+  return doc.body ?? doc.documentElement;
 }

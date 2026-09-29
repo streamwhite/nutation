@@ -38,6 +38,14 @@ export class TextNodeRegistry {
     return id !== undefined && this.byId.has(id);
   }
 
+  releaseNode(node: Text): void {
+    const id = this.byNode.get(node);
+    if (!id) {
+      return;
+    }
+    this.byId.delete(id);
+  }
+
   applyTranslation(id: string, translation: string): boolean {
     const record = this.byId.get(id);
     if (!record || !record.node.isConnected) {

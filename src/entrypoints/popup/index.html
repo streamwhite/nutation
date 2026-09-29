@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="container-fluid py-3" style="width: 320px;">
-      <h1 class="h5 mb-3">Page Translate</h1>
+      <h1 id="popup-title" class="h5 mb-3">Page Translate</h1>
 
       <div class="d-grid gap-2 mb-3">
         <button id="start-btn" class="btn btn-primary btn-sm" type="button">
@@ -17,7 +17,15 @@
         <button id="stop-btn" class="btn btn-outline-secondary btn-sm" type="button">
           Restore original
         </button>
+        <button id="summarize-btn" class="btn btn-outline-primary btn-sm" type="button">
+          Summarize page
+        </button>
+        <button id="copy-btn" class="btn btn-outline-primary btn-sm" type="button">
+          Copy page info
+        </button>
       </div>
+
+      <p id="summarize-note" class="form-text small mb-3"></p>
 
       <div id="status" class="small text-muted mb-2">Idle</div>
       <div id="error" class="alert alert-danger py-2 px-3 small d-none" role="alert"></div>

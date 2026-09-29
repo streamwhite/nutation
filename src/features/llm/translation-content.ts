@@ -167,6 +167,7 @@ function recoverPartialItems(content: string): TextChunk[] | null {
     return null;
   }
 
+  // Truncated mid-item yields [] so callers can retry missing ids.
   const items: TextChunk[] = [];
   let index = marker.index + marker[0].length;
 
@@ -208,7 +209,7 @@ function recoverPartialItems(content: string): TextChunk[] | null {
     index = end + 1;
   }
 
-  return items.length > 0 ? items : null;
+  return items;
 }
 
 function parseJsonFormat(content: string): TextChunk[] {
@@ -218,7 +219,7 @@ function parseJsonFormat(content: string): TextChunk[] {
     return toTextChunks(unwrapJsonPayload(parsed));
   } catch {
     const partial = recoverPartialItems(content);
-    if (partial) {
+    if (partial !== null) {
       return partial;
     }
     throw new Error('Unable to parse translation JSON');
