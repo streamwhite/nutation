@@ -187,4 +187,70 @@ describe('InPageTranslator', () => {
     expect(translator.getCacheStats().lookups).toBe(2);
     expect(translator.getCacheStats().hits).toBeGreaterThanOrEqual(1);
   });
+
+  it('skips the llm when the text is already the target language', async () => {
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'en', timing as never);
+
+    const result = await translator.translate([
+      { id: '0', text: 'Hello world', sourceLang: 'en-US' },
+    ]);
+
+    expect(translateBatchViaBackground).not.toHaveBeenCalled();
+    expect(result.translations).toEqual([{ id: '0', text: 'Hello world' }]);
+    expect(result.fromApi).toBe(0);
+    expect(result.fromCache).toBe(0);
+  });
+
+  it('falls back to the page language when an item has no source language', async () => {
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'fr', timing as never, 'fr-FR');
+
+    const result = await translator.translate([
+      { id: '0', text: 'Bonjour le monde' },
+    ]);
+
+    expect(translateBatchViaBackground).not.toHaveBeenCalled();
+    expect(result.translations).toEqual([{ id: '0', text: 'Bonjour le monde' }]);
+    expect(result.fromApi).toBe(0);
+  });
+
+  it('only sends items that are not already the target language to the llm', async () => {
+    translateBatchViaBackground.mockResolvedValue([{ id: '1', text: '你好' }]);
+
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'en', timing as never);
+
+    const result = await translator.translate([
+      { id: '0', text: 'Already English', sourceLang: 'en' },
+      { id: '1', text: '你好', sourceLang: 'zh-CN' },
+    ]);
+
+    expect(translateBatchViaBackground).toHaveBeenCalledTimes(1);
+    expect(translateBatchViaBackground).toHaveBeenCalledWith(
+      settings,
+      [{ id: '1', text: '你好', sourceLang: 'zh-CN' }],
+      'en',
+    );
+    expect(result.translations).toEqual(expect.arrayContaining([
+      { id: '0', text: 'Already English' },
+      { id: '1', text: '你好' },
+    ]));
+    expect(result.fromApi).toBe(1);
+  });
 });

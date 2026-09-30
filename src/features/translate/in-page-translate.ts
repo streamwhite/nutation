@@ -6,6 +6,7 @@ import { convertBatchWithOpenCC, getOpenCCCacheModel } from '@/features/opencc/c
 import { shouldUseOpenCC } from '@/features/opencc/locale';
 import { translateBatchViaBackground } from '@/features/translate/background-translate';
 import { buildCacheKey } from '@/features/translate/cache-key';
+import { isSameTranslationLanguage } from '@/features/translate/language-match';
 import { normalizeCacheText } from '@/features/translate/text-normalize';
 import type { StageTimer } from '@/features/translate/stage-timer';
 import type { TextChunk } from '@/features/translate/types';
@@ -37,8 +38,21 @@ export class InPageTranslator {
     private readonly pageLang = '',
   ) {}
 
+  private sourceLangFor(item: TextChunk): string {
+    return item.sourceLang?.trim() || this.pageLang;
+  }
+
   private usesOpenCC(item: TextChunk): boolean {
-    return shouldUseOpenCC(item.text, this.targetLang, item.sourceLang?.trim() || this.pageLang);
+    return shouldUseOpenCC(item.text, this.targetLang, this.sourceLangFor(item));
+  }
+
+  /**
+   * Text already written in the target language needs no translation, so it
+   * must never be sent to the model. OpenCC (Chinese variant conversion) is
+   * resolved first because same-tag Chinese variants may still need converting.
+   */
+  private isAlreadyTargetLanguage(item: TextChunk): boolean {
+    return isSameTranslationLanguage(this.sourceLangFor(item), this.targetLang);
   }
 
   private cacheModelFor(item: TextChunk): string {
@@ -96,9 +110,18 @@ export class InPageTranslator {
     }
 
     const localItems = missing.filter((item) => this.usesOpenCC(item));
-    const remoteItems = missing.filter((item) => !this.usesOpenCC(item));
+    const remoteItems = missing.filter((item) => (
+      !this.usesOpenCC(item) && !this.isAlreadyTargetLanguage(item)
+    ));
+    const alreadyTargetItems = missing.filter((item) => (
+      !this.usesOpenCC(item) && this.isAlreadyTargetLanguage(item)
+    ));
 
     const fresh: TextChunk[] = [];
+
+    for (const item of alreadyTargetItems) {
+      fresh.push({ id: item.id, text: item.text });
+    }
 
     if (localItems.length > 0) {
       this.timing.start('opencc_convert');
