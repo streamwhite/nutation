@@ -10,11 +10,11 @@ import {
   TAB_RELOAD_TIMEOUT_MS,
 } from '@/shared/constants';
 import { getContentScriptFiles } from '@/features/content-script/manifest-scripts';
+import { DEFAULT_LOCALE, formatMessage } from '@/i18n';
 
 const RESTRICTED_URL_PATTERN = /^(chrome|chrome-extension|edge|about|devtools|view-source|moz-extension):/i;
 const CONNECTION_ERROR_PATTERN = /receiving end does not exist|could not establish connection|no content script frames responded/i;
 const DUPLICATE_SCRIPT_PATTERN = /duplicate script id/i;
-const RESTRICTED_PAGE_MESSAGE = 'This page cannot be translated (browser internal page). Open a normal website tab.';
 
 let registerPromise: Promise<void> | null = null;
 
@@ -33,7 +33,7 @@ export function isRestrictedUrl(url: string): boolean {
 }
 
 export function getRestrictedPageMessage(): string {
-  return RESTRICTED_PAGE_MESSAGE;
+  return formatMessage(DEFAULT_LOCALE, 'popup.restrictedPage');
 }
 
 async function delay(ms: number): Promise<void> {

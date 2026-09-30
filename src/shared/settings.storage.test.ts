@@ -40,6 +40,7 @@ describe('saveSettings', () => {
       summaryPosition: 'right',
       cacheMaxEntries: 1_000_000,
       copyIncludeLink: true,
+      uiLocale: 'auto',
     });
 
     expect(saved.baseUrl).toBe('https://openrouter.ai/api/v1');
@@ -89,6 +90,7 @@ describe('loadSettings model normalization', () => {
       summaryPosition: 'right',
       cacheMaxEntries: 1_000_000,
       copyIncludeLink: true,
+      uiLocale: 'auto',
     });
 
     expect(saved.model).toBe('gemini-3.1-flash-lite');

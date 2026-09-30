@@ -9,7 +9,7 @@ import {
 import { RETRYABLE_HTTP_STATUSES } from '@/shared/constants';
 import { API_KEY_MISSING_MESSAGE } from '@/shared/api-key';
 import { buildRequestHeaders, resolveRequestModel } from '@/shared/providers';
-import { getUiStrings } from '@/shared/ui-strings';
+import { DEFAULT_LOCALE, formatMessage } from '@/i18n';
 import type { ExtensionSettings } from '@/shared/settings';
 
 type ChatCompletionResponse = {
@@ -39,7 +39,7 @@ export async function summarizePageTextWithLlm(
     throw new Error(API_KEY_MISSING_MESSAGE);
   }
   if (!pageText.trim()) {
-    throw new Error(getUiStrings().summarize.emptyPage);
+    throw new Error(formatMessage(DEFAULT_LOCALE, 'summarize.emptyPage'));
   }
 
   const model = resolveRequestModel(settings);
@@ -67,7 +67,7 @@ export async function summarizePageTextWithLlm(
 
   const content = payload.choices?.[0]?.message?.content?.trim();
   if (!content) {
-    throw new Error(getUiStrings().summarize.emptyResponse);
+    throw new Error(formatMessage(DEFAULT_LOCALE, 'summarize.emptyResponse'));
   }
   await setCachedSummary(pageUrl, targetLang, model, content);
   return { summary: content, fromCache: false };

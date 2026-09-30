@@ -1,3 +1,5 @@
+import type { MessageId } from '@/i18n';
+
 export const TRANSLATE_ON_OPEN_MATCH_TYPES = ['prefix', 'domain', 'regexp'] as const;
 
 export type TranslateOnOpenMatchType = (typeof TRANSLATE_ON_OPEN_MATCH_TYPES)[number];
@@ -9,10 +11,19 @@ export type TranslateOnOpenRule = {
   enabled: boolean;
 };
 
-export const TRANSLATE_ON_OPEN_MATCH_LABELS: Record<TranslateOnOpenMatchType, string> = {
-  prefix: 'URLs starting with',
-  domain: 'URLs on the domain',
-  regexp: 'URLs matching the regexp',
+export const TRANSLATE_ON_OPEN_MATCH_LABEL_IDS: Record<TranslateOnOpenMatchType, MessageId> = {
+  prefix: 'options.translateOnOpen.match.prefix',
+  domain: 'options.translateOnOpen.match.domain',
+  regexp: 'options.translateOnOpen.match.regexp',
+};
+
+export const TRANSLATE_ON_OPEN_MATCH_PLACEHOLDER_IDS: Record<
+  TranslateOnOpenMatchType,
+  MessageId
+> = {
+  prefix: 'options.translateOnOpen.placeholder.prefix',
+  domain: 'options.translateOnOpen.placeholder.domain',
+  regexp: 'options.translateOnOpen.placeholder.regexp',
 };
 
 export function isTranslateOnOpenMatchType(value: unknown): value is TranslateOnOpenMatchType {
@@ -95,6 +106,15 @@ export function shouldTranslateOnOpen(
 
 export function createTranslateOnOpenRuleId(): string {
   return `rule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createEmptyTranslateOnOpenRule(): TranslateOnOpenRule {
+  return {
+    id: createTranslateOnOpenRuleId(),
+    type: 'domain',
+    pattern: '',
+    enabled: true,
+  };
 }
 
 export function parseTranslateOnOpenRules(raw: unknown): TranslateOnOpenRule[] {

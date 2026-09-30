@@ -28,6 +28,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  uiLocale: 'auto',
 };
 
 describe('InPageTranslator', () => {

@@ -3,9 +3,10 @@ import {
   getProviderPreset,
   inferProviderFromBaseUrl,
   listProvidersByCategory,
-  PROVIDER_CATEGORY_LABELS,
+  PROVIDER_CATEGORY_LABEL_IDS,
   PROVIDER_IDS,
 } from '@/shared/providers';
+import { getMessages } from '@/i18n';
 
 describe('provider categories', () => {
   it('groups gateways and direct providers', () => {
@@ -15,7 +16,7 @@ describe('provider categories', () => {
     expect(direct).toContain('gemini');
     expect(direct).toContain('openai');
     expect(direct).toContain('custom');
-    expect(PROVIDER_CATEGORY_LABELS.gateway).toBe('API gateways');
+    expect(getMessages('en')[PROVIDER_CATEGORY_LABEL_IDS.gateway]).toBe('API gateways');
     expect(PROVIDER_IDS.length).toBe(gateways.length + direct.length);
   });
 

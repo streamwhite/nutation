@@ -23,6 +23,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  uiLocale: 'auto',
 };
 
 const mockTranslate = vi.fn();

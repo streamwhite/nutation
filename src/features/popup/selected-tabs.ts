@@ -1,7 +1,4 @@
-import {
-  getRestrictedPageMessage,
-  isRestrictedUrl,
-} from '@/features/content-script/recover';
+import { isRestrictedUrl } from '@/features/content-script/recover';
 
 export type PopupTab = {
   id: number;
@@ -62,42 +59,4 @@ export function summarizeMultiTabResults(results: MultiTabResult[]): MultiTabSum
   }
 
   return { started, failed, firstError, firstFailedTabId };
-}
-
-export function formatSelectedTabsStatus(tabCount: number, active: boolean): string {
-  if (!active) {
-    return 'Idle';
-  }
-  if (tabCount <= 1) {
-    return 'Translating…';
-  }
-  return `Translating ${tabCount} tabs…`;
-}
-
-export function formatMultiTabStartLabel(tabCount: number): string {
-  if (tabCount <= 1) {
-    return 'Starting…';
-  }
-  return `Starting ${tabCount} tabs…`;
-}
-
-export function formatTranslateButtonLabel(tabCount: number): string {
-  if (tabCount <= 1) {
-    return 'Translate page';
-  }
-  return `Translate ${tabCount} tabs`;
-}
-
-export function formatRestoreButtonLabel(tabCount: number): string {
-  if (tabCount <= 1) {
-    return 'Restore original';
-  }
-  return `Restore ${tabCount} tabs`;
-}
-
-export function noTranslatableTabsMessage(restrictedCount: number): string {
-  if (restrictedCount > 0) {
-    return getRestrictedPageMessage();
-  }
-  return 'No selected tabs found';
 }

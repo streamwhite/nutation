@@ -1,3 +1,4 @@
+import type { MessageId } from '@/i18n';
 import type { ExtensionSettings } from '@/shared/settings';
 import { normalizeCustomChatCompletionsUrl } from '@/features/llm/api-url';
 
@@ -5,9 +6,9 @@ export const PROVIDER_CATEGORIES = ['gateway', 'direct'] as const;
 
 export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
 
-export const PROVIDER_CATEGORY_LABELS: Record<ProviderCategory, string> = {
-  gateway: 'API gateways',
-  direct: 'Direct providers',
+export const PROVIDER_CATEGORY_LABEL_IDS: Record<ProviderCategory, MessageId> = {
+  gateway: 'options.providerCategory.gateway',
+  direct: 'options.providerCategory.direct',
 };
 
 export const PROVIDER_IDS = [
@@ -22,9 +23,18 @@ export const PROVIDER_IDS = [
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
+export const PROVIDER_LABEL_IDS: Record<ProviderId, MessageId> = {
+  openrouter: 'options.provider.openrouter',
+  vercel: 'options.provider.vercel',
+  openai: 'options.provider.openai',
+  gemini: 'options.provider.gemini',
+  deepseek: 'options.provider.deepseek',
+  mistral: 'options.provider.mistral',
+  custom: 'options.provider.custom',
+};
+
 export type ProviderPreset = {
   id: ProviderId;
-  label: string;
   category: ProviderCategory;
   baseUrl: string;
   defaultModel: string;
@@ -45,7 +55,6 @@ function stripGoogleProviderPrefix(model: string): string {
 export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   openrouter: {
     id: 'openrouter',
-    label: 'OpenRouter',
     category: 'gateway',
     baseUrl: 'https://openrouter.ai/api/v1',
     defaultModel: 'deepseek/deepseek-v4-flash',
@@ -53,7 +62,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   vercel: {
     id: 'vercel',
-    label: 'Vercel AI Gateway',
     category: 'gateway',
     baseUrl: 'https://ai-gateway.vercel.sh/v1',
     defaultModel: 'google/gemini-3.1-flash-lite',
@@ -61,7 +69,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   openai: {
     id: 'openai',
-    label: 'OpenAI',
     category: 'direct',
     baseUrl: 'https://api.openai.com/v1',
     defaultModel: 'gpt-4o-mini',
@@ -69,7 +76,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   gemini: {
     id: 'gemini',
-    label: 'Google Gemini',
     category: 'direct',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: GEMINI_DEFAULT_MODEL,
@@ -77,7 +83,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   deepseek: {
     id: 'deepseek',
-    label: 'DeepSeek',
     category: 'direct',
     baseUrl: 'https://api.deepseek.com/v1',
     defaultModel: 'deepseek-v4-flash',
@@ -85,7 +90,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   mistral: {
     id: 'mistral',
-    label: 'Mistral',
     category: 'direct',
     baseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-small-latest',
@@ -93,7 +97,6 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
   },
   custom: {
     id: 'custom',
-    label: 'Custom',
     category: 'direct',
     baseUrl: '',
     defaultModel: '',

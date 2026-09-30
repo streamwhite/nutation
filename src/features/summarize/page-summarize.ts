@@ -1,9 +1,21 @@
 import { collectPageTextForSummary } from '@/features/summarize/collect-page-text';
-import { showSummaryOverlay } from '@/features/summarize/overlay';
 import { MESSAGE_TYPES } from '@/shared/constants';
-import { getUiStrings } from '@/shared/ui-strings';
+import { DEFAULT_LOCALE, formatMessage } from '@/i18n';
 import type { ExtensionSettings } from '@/shared/settings';
+import type { SummaryOverlayOptions } from '@/features/summarize/overlay';
 import type { SummarizePageResponse, SummarizeTextResponse } from '@/features/translate/types';
+
+const OVERLAY_MODULE_PATH = '/content-scripts/esm/overlay.js';
+
+type OverlayModule = {
+  showSummaryOverlay: (options: SummaryOverlayOptions, doc?: Document) => HTMLElement;
+};
+
+async function loadOverlayModule(): Promise<OverlayModule> {
+  return import(
+    /* @vite-ignore */ browser.runtime.getURL(OVERLAY_MODULE_PATH)
+  ) as Promise<OverlayModule>;
+}
 
 export async function summarizeCurrentPage(
   settings: ExtensionSettings,
@@ -11,7 +23,7 @@ export async function summarizeCurrentPage(
   try {
     const collected = collectPageTextForSummary();
     if (!collected.text) {
-      return { ok: false, error: getUiStrings().summarize.emptyPage };
+      return { ok: false, error: formatMessage(DEFAULT_LOCALE, 'summarize.emptyPage') };
     }
 
     const response = await browser.runtime.sendMessage({
@@ -27,11 +39,13 @@ export async function summarizeCurrentPage(
       return { ok: false, error: response.error };
     }
 
+    const { showSummaryOverlay } = await loadOverlayModule();
     showSummaryOverlay({
       summary: response.summary,
       isListingFeed: collected.isListingFeed,
       fromCache: response.fromCache,
       position: settings.summaryPosition,
+      uiLocale: settings.uiLocale,
     });
 
     return {

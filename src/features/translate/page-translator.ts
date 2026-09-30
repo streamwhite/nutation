@@ -555,16 +555,3 @@ export class PageTranslator {
     }, TRANSLATE_BATCH_FAILURE_DELAY_MS);
   }
 }
-
-export function formatStatusText(status: TabStatus): string {
-  const cacheRate = formatCacheHitRate(status.cacheHits, status.cacheLookups);
-  const base = status.active ? 'Translating…' : 'Idle';
-  return cacheRate ? `${base}, cache ${cacheRate}` : base;
-}
-
-function formatCacheHitRate(hits?: number, lookups?: number): string | null {
-  if (typeof hits !== 'number' || typeof lookups !== 'number' || lookups <= 0) {
-    return null;
-  }
-  return `${Math.round((hits / lookups) * 100)}%`;
-}

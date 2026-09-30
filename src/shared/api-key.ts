@@ -1,5 +1,6 @@
-export const API_KEY_MISSING_MESSAGE =
-  'API key is missing. Configure it in extension options.';
+import { DEFAULT_LOCALE, getMessages } from '@/i18n';
+
+export const API_KEY_MISSING_MESSAGE = getMessages(DEFAULT_LOCALE)['popup.apiKeyMissing'];
 
 export type ApiKeyEnv = {
   DEV?: boolean;

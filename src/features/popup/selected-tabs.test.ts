@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatMultiTabStartLabel,
-  formatRestoreButtonLabel,
-  formatSelectedTabsStatus,
-  formatTranslateButtonLabel,
   normalizePopupTabs,
   partitionTranslatableTabs,
   summarizeMultiTabResults,
@@ -45,24 +41,5 @@ describe('summarizeMultiTabResults', () => {
     expect(summary.failed).toBe(1);
     expect(summary.firstError).toBe('Content script unavailable');
     expect(summary.firstFailedTabId).toBe(2);
-  });
-});
-
-describe('formatSelectedTabsStatus', () => {
-  it('mentions tab count when translating several tabs', () => {
-    expect(formatSelectedTabsStatus(3, true)).toBe('Translating 3 tabs…');
-    expect(formatSelectedTabsStatus(1, true)).toBe('Translating…');
-    expect(formatSelectedTabsStatus(2, false)).toBe('Idle');
-  });
-});
-
-describe('button labels', () => {
-  it('scales labels with selected tab count', () => {
-    expect(formatTranslateButtonLabel(1)).toBe('Translate page');
-    expect(formatTranslateButtonLabel(4)).toBe('Translate 4 tabs');
-    expect(formatRestoreButtonLabel(1)).toBe('Restore original');
-    expect(formatRestoreButtonLabel(4)).toBe('Restore 4 tabs');
-    expect(formatMultiTabStartLabel(1)).toBe('Starting…');
-    expect(formatMultiTabStartLabel(3)).toBe('Starting 3 tabs…');
   });
 });

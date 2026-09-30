@@ -1,16 +1,18 @@
 import { estimateMaxTokens } from '@/features/llm/request-body';
 import { resolveRequestModel } from '@/shared/providers';
 import { SUMMARIZE_MAX_OUTPUT_TOKENS } from '@/shared/constants';
-import { getUiStrings } from '@/shared/ui-strings';
 import type { ExtensionSettings } from '@/shared/settings';
 
+export const SUMMARIZE_SYSTEM_PROMPT = 'You summarize web page content clearly and accurately. Write a concise summary in the target language. Use short paragraphs. Do not invent facts. No markdown fences or titles unless needed for clarity.';
+
+export const SUMMARIZE_USER_PROMPT_PREFIX = 'Summarize the following page content.';
+
 export function getSummarizeSystemPrompt(): string {
-  return getUiStrings().summarize.systemPrompt;
+  return SUMMARIZE_SYSTEM_PROMPT;
 }
 
 export function buildSummarizeUserPrompt(pageText: string, targetLang: string): string {
-  const prefix = getUiStrings().summarize.userPromptPrefix;
-  return [`lang=${targetLang}`, prefix, '', pageText].join('\n');
+  return [`lang=${targetLang}`, SUMMARIZE_USER_PROMPT_PREFIX, '', pageText].join('\n');
 }
 
 export function estimateSummarizeMaxTokens(pageText: string): number {

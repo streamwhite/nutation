@@ -1,5 +1,6 @@
 import { resolveDefaultApiKey } from '@/shared/api-key';
 import { browser } from 'wxt/browser';
+import { DEFAULT_LOCALE, formatMessage, resolveLocaleSetting, type LocaleSetting } from '@/i18n';
 import { STORAGE_KEYS, TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
 import { normalizeApiBaseUrl, normalizeCustomChatCompletionsUrl } from '@/features/llm/api-url';
 import { resolveCacheMaxEntries } from '@/features/translate/cache-max-entries';
@@ -38,6 +39,7 @@ export type ExtensionSettings = {
   summaryPosition: SummaryPosition;
   cacheMaxEntries: number;
   copyIncludeLink: boolean;
+  uiLocale: LocaleSetting;
 };
 
 export function getDefaultSettings(): ExtensionSettings {
@@ -64,6 +66,7 @@ export function getDefaultSettings(): ExtensionSettings {
       TRANSLATION_CACHE_MAX_ENTRIES,
     ),
     copyIncludeLink: true,
+    uiLocale: resolveLocaleSetting(import.meta.env.VITE_DEFAULT_UI_LOCALE),
   };
 }
 
@@ -108,6 +111,7 @@ export function parseSettings(raw: unknown): ExtensionSettings {
     ),
     cacheMaxEntries: resolveCacheMaxEntries(value.cacheMaxEntries, defaults.cacheMaxEntries),
     copyIncludeLink: value.copyIncludeLink !== false,
+    uiLocale: resolveLocaleSetting(value.uiLocale),
   };
 }
 
@@ -164,7 +168,7 @@ export async function saveSettings(settings: ExtensionSettings): Promise<Extensi
   const result = await browser.storage.local.get(STORAGE_KEYS.SETTINGS);
   const saved = parseSettings(result[STORAGE_KEYS.SETTINGS]);
   if (saved.baseUrl !== parsed.baseUrl || saved.model !== parsed.model) {
-    throw new Error('Settings were not persisted. Reload the extension and try again.');
+    throw new Error(formatMessage(DEFAULT_LOCALE, 'options.error.notPersisted'));
   }
   return saved;
 }

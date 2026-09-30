@@ -125,6 +125,13 @@ describe('parseSettings', () => {
     expect(parseSettings({ copyIncludeLink: false }).copyIncludeLink).toBe(false);
   });
 
+  it('defaults the interface locale to auto', () => {
+    expect(getDefaultSettings().uiLocale).toBe('auto');
+    expect(parseSettings({}).uiLocale).toBe('auto');
+    expect(parseSettings({ uiLocale: 'zh-CN' }).uiLocale).toBe('zh-CN');
+    expect(parseSettings({ uiLocale: 'nope' }).uiLocale).toBe('auto');
+  });
+
   it('parses translate on open rules', () => {
     const parsed = parseSettings({
       translateOnOpenRules: [

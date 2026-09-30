@@ -8,7 +8,7 @@ import type {
 } from '@/features/translate/types';
 import { MESSAGE_TYPES } from '@/shared/constants';
 import { loadSettings } from '@/shared/settings';
-import { getUiStrings } from '@/shared/ui-strings';
+import { detectLocale, formatMessage } from '@/i18n';
 
 const translator = new PageTranslator();
 
@@ -44,7 +44,7 @@ export default defineContentScript({
         if (window !== window.top) {
           return Promise.resolve({
             ok: false,
-            error: getUiStrings().popup.summarizeTopFrameOnly,
+            error: formatMessage(detectLocale(), 'summarize.topFrameOnly'),
           });
         }
         return loadSettings().then((settings) => summarizeCurrentPage(settings));
@@ -54,7 +54,7 @@ export default defineContentScript({
         if (window !== window.top) {
           return Promise.resolve({
             ok: false,
-            error: getUiStrings().popup.copyTopFrameOnly,
+            error: formatMessage(detectLocale(), 'copy.topFrameOnly'),
           });
         }
         return loadSettings()

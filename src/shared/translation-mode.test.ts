@@ -3,8 +3,9 @@ import {
   DEFAULT_TRANSLATION_MODE,
   isTranslationMode,
   resolveTranslationMode,
-  TRANSLATION_MODE_NOTES,
+  TRANSLATION_MODE_NOTE_IDS,
 } from '@/shared/translation-mode';
+import { getMessages } from '@/i18n';
 
 describe('isTranslationMode', () => {
   it('accepts known modes only', () => {
@@ -28,11 +29,12 @@ describe('resolveTranslationMode', () => {
   });
 });
 
-describe('TRANSLATION_MODE_NOTES', () => {
+describe('translation mode notes', () => {
   it('explains tradeoffs for both modes', () => {
-    expect(TRANSLATION_MODE_NOTES.bulk).toMatch(/whole page/i);
-    expect(TRANSLATION_MODE_NOTES.bulk).toMatch(/scroll/i);
-    expect(TRANSLATION_MODE_NOTES.progressive).toMatch(/viewport/i);
-    expect(TRANSLATION_MODE_NOTES.progressive).toMatch(/sooner|as soon/i);
+    const en = getMessages('en');
+    expect(en[TRANSLATION_MODE_NOTE_IDS.bulk]).toMatch(/whole page/i);
+    expect(en[TRANSLATION_MODE_NOTE_IDS.bulk]).toMatch(/scroll/i);
+    expect(en[TRANSLATION_MODE_NOTE_IDS.progressive]).toMatch(/viewport/i);
+    expect(en[TRANSLATION_MODE_NOTE_IDS.progressive]).toMatch(/sooner|as soon/i);
   });
 });

@@ -4,7 +4,7 @@ import {
   formatLanguageLabel,
   resolveTargetLanguageCode,
 } from '@/shared/languages';
-import { searchTargetLanguages } from '@/features/options/language-picker';
+import { searchTargetLanguages } from '@/features/options/language-search';
 
 describe('findTargetLanguage', () => {
   it('finds languages by code', () => {
