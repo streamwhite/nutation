@@ -115,6 +115,89 @@ export const MAIN_CONTENT_SELECTORS = [
 ] as const;
 
 export const MIN_HEADLINE_FEED_COUNT = 3;
+// A listing/feed shows many headlines that are themselves links; an article's
+// section headings usually are not. Readability-style link weighting.
+export const MIN_LINKED_HEADLINE_RATIO = 0.6;
+
+export const ARTICLE_SCHEMA_TYPES = [
+  'Article',
+  'NewsArticle',
+  'AnalysisNewsArticle',
+  'BackgroundNewsArticle',
+  'OpinionNewsArticle',
+  'ReportageNewsArticle',
+  'ReviewNewsArticle',
+  'BlogPosting',
+  'LiveBlogPosting',
+  'TechArticle',
+  'ScholarlyArticle',
+  'Report',
+  'Review',
+] as const;
+
+export const ARTICLE_PATH_SEGMENTS = [
+  'article',
+  'articles',
+  'story',
+  'stories',
+  'post',
+  'posts',
+  'news',
+  'blog',
+  'insights',
+  'press',
+  'review',
+  'reviews',
+  'p',
+] as const;
+
+export const LISTING_PATH_SEGMENTS = [
+  'category',
+  'categories',
+  'tag',
+  'tags',
+  'topic',
+  'topics',
+  'author',
+  'authors',
+  'archive',
+  'archives',
+  'search',
+  'feed',
+  'rss',
+  'sitemap',
+  'page',
+  'index',
+  'section',
+  'sections',
+  'channel',
+  'channels',
+  'collection',
+  'collections',
+  'browse',
+  'explore',
+  'latest',
+  'popular',
+  'trending',
+] as const;
+
+export const LISTING_QUERY_PARAMS = [
+  'page',
+  'paged',
+  'offset',
+  'start',
+  's',
+  'q',
+  'query',
+  'search',
+  'category',
+  'cat',
+  'tag',
+  'topic',
+  'sort',
+  'order',
+  'filter',
+] as const;
 
 export const VISUALIZATION_EMBED_SELECTORS = [
   '[class*="fl-layout"]',

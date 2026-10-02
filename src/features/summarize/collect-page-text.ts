@@ -1,6 +1,6 @@
 import { collectTextNodes } from '@/features/dom/collect-text';
-import { isLikelyArticleUrl } from '@/features/dom/article-url';
-import { findCollectionRoot, isListingFeedRoot } from '@/features/dom/content-root';
+import { findCollectionRoot } from '@/features/dom/content-root';
+import { isLikelyListingFeed } from '@/features/dom/page-kind';
 import { shouldTranslateText } from '@/features/translate/batch';
 import {
   MIN_TRANSLATE_TEXT_LENGTH,
@@ -56,6 +56,6 @@ export function collectPageTextForSummary(
   return {
     text,
     charCount: text.length,
-    isListingFeed: !isLikelyArticleUrl(pageUrl) && isListingFeedRoot(root),
+    isListingFeed: isLikelyListingFeed(doc, pageUrl),
   };
 }

@@ -5,6 +5,7 @@ import {
   HEADLINE_CLASS_TOKENS,
   MAIN_CONTENT_SELECTORS,
   MIN_HEADLINE_FEED_COUNT,
+  MIN_LINKED_HEADLINE_RATIO,
   MIN_TRANSLATE_TEXT_LENGTH,
 } from '@/shared/constants';
 
@@ -176,10 +177,25 @@ function isFeedHeadlineHeading(element: Element): boolean {
   return true;
 }
 
+function isInsideLink(element: Element): boolean {
+  let current: Element | null = element;
+  while (current && current !== document.documentElement) {
+    if (current.tagName === 'A') {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
 export function isListingFeedRoot(root: Element): boolean {
-  const headlineCount = Array.from(root.querySelectorAll('h1, h2'))
-    .filter((heading) => isFeedHeadlineHeading(heading)).length;
-  return headlineCount >= MIN_HEADLINE_FEED_COUNT;
+  const headlines = Array.from(root.querySelectorAll('h1, h2'))
+    .filter((heading) => isFeedHeadlineHeading(heading));
+  if (headlines.length < MIN_HEADLINE_FEED_COUNT) {
+    return false;
+  }
+  const linkedCount = headlines.filter((heading) => isInsideLink(heading)).length;
+  return linkedCount / headlines.length >= MIN_LINKED_HEADLINE_RATIO;
 }
 
 export function findMainContentRoot(

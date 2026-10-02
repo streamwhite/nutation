@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   collectPageTextForSummary,
   resolveSummarizeMaxChars,
@@ -21,6 +21,10 @@ describe('trimPageTextForSummary', () => {
 });
 
 describe('collectPageTextForSummary', () => {
+  beforeEach(() => {
+    document.head.innerHTML = '';
+  });
+
   it('collects full-page readable text once without viewport filter', () => {
     document.body.innerHTML = `
       <nav>Site menu</nav>
@@ -42,11 +46,11 @@ describe('collectPageTextForSummary', () => {
   it('flags listing or feed style pages', () => {
     document.body.innerHTML = `
       <main>
-        <h2>Story one headline here</h2>
+        <a href="/story-1"><h2>Story one headline here</h2></a>
         <p>${'Summary one '.repeat(8)}</p>
-        <h2>Story two headline here</h2>
+        <a href="/story-2"><h2>Story two headline here</h2></a>
         <p>${'Summary two '.repeat(8)}</p>
-        <h2>Story three headline here</h2>
+        <a href="/story-3"><h2>Story three headline here</h2></a>
         <p>${'Summary three '.repeat(8)}</p>
       </main>
     `;
@@ -54,6 +58,29 @@ describe('collectPageTextForSummary', () => {
     const result = collectPageTextForSummary(document);
     expect(result.isListingFeed).toBe(true);
     expect(result.text).toContain('Story one headline here');
+  });
+
+  it('does not flag long articles with multiple section headings', () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>A long-form article title</h1>
+        <h2>First section heading</h2>
+        <p>${'Body paragraph text. '.repeat(30)}</p>
+        <h2>Second section heading</h2>
+        <p>${'More body paragraph text. '.repeat(30)}</p>
+        <h2>Third section heading</h2>
+        <p>${'Final body paragraph text. '.repeat(30)}</p>
+      </main>
+    `;
+
+    const result = collectPageTextForSummary(document, undefined, 'https://example.com/some/tech');
+    expect(result.isListingFeed).toBe(false);
+  });
+
+  it('flags aggregation URLs such as category pages', () => {
+    document.body.innerHTML = '<main><h1>Tech</h1><p>Short intro.</p></main>';
+    const result = collectPageTextForSummary(document, undefined, 'https://example.com/category/tech/');
+    expect(result.isListingFeed).toBe(true);
   });
 
   it('treats date-based article urls as articles despite many headlines', () => {

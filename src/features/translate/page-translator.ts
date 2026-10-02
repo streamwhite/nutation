@@ -1,5 +1,6 @@
 import { collectTextNodes } from '@/features/dom/collect-text';
-import { findCollectionRoot, isListingFeedRoot } from '@/features/dom/content-root';
+import { findCollectionRoot } from '@/features/dom/content-root';
+import { isLikelyListingFeed } from '@/features/dom/page-kind';
 import { createDebouncedCallback, observeMutations, observeVisibleElements } from '@/features/dom/observers';
 import { TextNodeRegistry } from '@/features/dom/registry';
 import {
@@ -51,6 +52,7 @@ export class PageTranslator {
   private targetLang = 'zh-CN';
   private concurrency = TRANSLATE_CONCURRENCY;
   private translationMode: TranslationMode = DEFAULT_TRANSLATION_MODE;
+  private isListingFeed = false;
   private bulkInitialCollectPending = true;
   private bulkInitialPackPending = true;
   private contentRoot: Element | null = null;
@@ -116,6 +118,7 @@ export class PageTranslator {
     this.lastTitleTranslation = null;
     this.active = true;
     this.contentRoot = findCollectionRoot(document);
+    this.isListingFeed = isLikelyListingFeed(document, document.location?.href ?? '');
     this.ensureObservers();
     this.bindScrollResize();
     this.queueVisibleCandidates();
@@ -281,7 +284,7 @@ export class PageTranslator {
   private queueVisibleCandidates(): void {
     const root = this.getRoot();
     const deferredParents = new Set<Element>();
-    const useViewport = this.shouldCollectNearViewport(root);
+    const useViewport = this.shouldCollectNearViewport();
 
     this.timing.start('collect_dom');
     const collected = collectTextNodes(root, useViewport
@@ -338,9 +341,9 @@ export class PageTranslator {
     });
   }
 
-  private shouldCollectNearViewport(root: Element): boolean {
+  private shouldCollectNearViewport(): boolean {
     if (this.translationMode === 'progressive') {
-      return !isListingFeedRoot(root);
+      return !this.isListingFeed;
     }
     return !this.bulkInitialCollectPending;
   }
