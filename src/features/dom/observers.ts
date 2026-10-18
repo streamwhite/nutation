@@ -30,9 +30,11 @@ export function observeMutations(
   root: Node,
   onChange: () => void,
 ): MutationObserver {
-  const debounced = createDebouncedCallback(onChange);
+  // Callers already coalesce DOM work (PageTranslator routes this through its
+  // own debounced scheduler), so an extra debounce here only delays newly
+  // inserted content before it can start translating.
   const observer = new MutationObserver(() => {
-    debounced();
+    onChange();
   });
 
   observer.observe(root, {
