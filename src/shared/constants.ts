@@ -235,7 +235,9 @@ export const TRANSLATE_RETRY_BASE_DELAY_MS = 800;
 export const TRANSLATE_BATCH_FAILURE_DELAY_MS = 2000;
 export const RETRYABLE_HTTP_STATUSES = [429, 502, 503, 504] as const;
 export const MIN_TRANSLATE_TEXT_LENGTH = 2;
-export const INTERSECTION_ROOT_MARGIN = '400px';
+// Prefetch ~one viewport below the fold so content is translated before it
+// scrolls into view. Also drives the viewport collection margin.
+export const INTERSECTION_ROOT_MARGIN = '800px';
 export const MEMORY_CACHE_MAX_ENTRIES = 800;
 export const TRANSLATION_CACHE_MAX_ENTRIES = 1_000_000;
 export const TRANSLATION_CACHE_MIN_ENTRIES = 1_000;
