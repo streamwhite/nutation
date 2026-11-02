@@ -1,7 +1,7 @@
 import { resolveDefaultApiKey } from '@/shared/api-key';
 import { browser } from 'wxt/browser';
 import { DEFAULT_LOCALE, formatMessage, resolveLocaleSetting, type LocaleSetting } from '@/i18n';
-import { STORAGE_KEYS, TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
+import { STORAGE_KEYS, PAGE_INFO_SEPARATOR, TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
 import { normalizeApiBaseUrl, normalizeCustomChatCompletionsUrl } from '@/features/llm/api-url';
 import { resolveCacheMaxEntries } from '@/features/translate/cache-max-entries';
 import {
@@ -39,6 +39,7 @@ export type ExtensionSettings = {
   summaryPosition: SummaryPosition;
   cacheMaxEntries: number;
   copyIncludeLink: boolean;
+  copySeparator: string;
   uiLocale: LocaleSetting;
 };
 
@@ -66,6 +67,7 @@ export function getDefaultSettings(): ExtensionSettings {
       TRANSLATION_CACHE_MAX_ENTRIES,
     ),
     copyIncludeLink: true,
+    copySeparator: PAGE_INFO_SEPARATOR,
     uiLocale: resolveLocaleSetting(import.meta.env.VITE_DEFAULT_UI_LOCALE),
   };
 }
@@ -111,6 +113,9 @@ export function parseSettings(raw: unknown): ExtensionSettings {
     ),
     cacheMaxEntries: resolveCacheMaxEntries(value.cacheMaxEntries, defaults.cacheMaxEntries),
     copyIncludeLink: value.copyIncludeLink !== false,
+    copySeparator: typeof value.copySeparator === 'string' && value.copySeparator !== ''
+      ? value.copySeparator
+      : defaults.copySeparator,
     uiLocale: resolveLocaleSetting(value.uiLocale),
   };
 }

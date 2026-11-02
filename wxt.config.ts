@@ -8,8 +8,8 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifest: {
-    name: 'Page Translate',
-    description: 'Translate page content with configurable OpenAI-compatible models',
+    name: 'Nutation',
+    description: 'Nutation — translate pages with OpenAI, Anthropic, Gemini, DeepSeek, xAI, Mistral, OpenRouter, or Vercel AI Gateway.',
     permissions: ['storage', 'activeTab', 'scripting', 'tabs', 'webNavigation', 'contextMenus'],
     host_permissions: ['<all_urls>', 'https://generativelanguage.googleapis.com/*'],
   },

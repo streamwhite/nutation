@@ -50,7 +50,6 @@ export type PopupController = {
   summarize: () => void;
   copyInfo: () => void;
   reload: () => void;
-  openOptions: () => void;
 };
 
 const CONTENT_SCRIPT_ERROR_PATTERN = /content script unavailable|receiving end does not exist/i;
@@ -493,10 +492,6 @@ export function usePopupController(): PopupController {
     }
   };
 
-  const openOptions = () => {
-    void browser.runtime.openOptionsPage();
-  };
-
   useEffect(() => {
     let cancelled = false;
 
@@ -533,6 +528,5 @@ export function usePopupController(): PopupController {
     summarize: () => void summarize(),
     copyInfo: () => void copyInfo(),
     reload: () => void reload(),
-    openOptions,
   };
 }

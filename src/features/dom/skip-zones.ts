@@ -1,4 +1,8 @@
 import {
+  ACTION_CLASS_TOKENS,
+  ACTION_TEXT_PATTERN,
+  BOILERPLATE_CLASS_TOKENS,
+  BOILERPLATE_LABEL_PATTERN,
   METADATA_CLASS_TOKENS,
   METADATA_ROLE_NAMES,
   METADATA_TAG_NAMES,
@@ -89,6 +93,28 @@ function isShareNode(element: Element): boolean {
   return false;
 }
 
+function isBoilerplateNode(element: Element): boolean {
+  if (isActionLabelElement(element)) {
+    return false;
+  }
+  // Layout wrappers can carry tokens like `has-sidebar` or `popular-posts`
+  // without being boilerplate. Never discard a page-level content landmark.
+  const role = element.getAttribute('role')?.toLowerCase();
+  if (element.tagName === 'MAIN'
+    || element.tagName === 'ARTICLE'
+    || element.tagName === 'BODY'
+    || role === 'main') {
+    return false;
+  }
+  if (matchesToken(classTokens(element), BOILERPLATE_CLASS_TOKENS)) {
+    return true;
+  }
+  const label = element.getAttribute('aria-label')
+    ?? element.getAttribute('data-testid')
+    ?? '';
+  return BOILERPLATE_LABEL_PATTERN.test(label);
+}
+
 export function isMetadataElement(element: Element | null): boolean {
   if (!element) {
     return false;
@@ -103,6 +129,32 @@ export function isShareElement(element: Element | null): boolean {
   return hasAncestorMatch(element, isShareNode);
 }
 
+export function isBoilerplateElement(element: Element | null): boolean {
+  if (!element) {
+    return false;
+  }
+  return hasAncestorMatch(element, isBoilerplateNode);
+}
+
+export function isActionLabelElement(element: Element | null): boolean {
+  if (!element) {
+    return false;
+  }
+  if (matchesToken(classTokens(element), ACTION_CLASS_TOKENS)) {
+    return true;
+  }
+  const text = element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  return text.length > 0 && text.length <= 80 && ACTION_TEXT_PATTERN.test(text);
+}
+
+export function isNonReadableChromeNode(element: Element): boolean {
+  return isMetadataNode(element)
+    || isShareNode(element)
+    || isBoilerplateNode(element);
+}
+
 export function isNonReadableChrome(element: Element | null): boolean {
-  return isMetadataElement(element) || isShareElement(element);
+  return isMetadataElement(element)
+    || isShareElement(element)
+    || isBoilerplateElement(element);
 }

@@ -1,6 +1,6 @@
 import { SKIP_TAG_NAMES } from '@/shared/constants';
-import { isChromeElement } from '@/features/dom/content-root';
-import { isNonReadableChrome } from '@/features/dom/skip-zones';
+import { isChromeNode } from '@/features/dom/content-root';
+import { isActionLabelElement, isNonReadableChromeNode } from '@/features/dom/skip-zones';
 import { isVisuallyHidden } from '@/features/dom/visibility';
 import {
   isAboveViewport,
@@ -17,31 +17,65 @@ function isEditableElement(element: Element): boolean {
   return attr !== null && attr.toLowerCase() !== 'false';
 }
 
+type SkipCache = WeakMap<Element, boolean>;
+
+/**
+ * Skip rules other than visibility are inherited from ancestors, so walking up
+ * the tree once per element and memoizing the result is equivalent to
+ * re-walking the chain for every check. Collections call this for every element
+ * and text parent, which made plain scrolling noticeably expensive on long
+ * feeds. Visibility stays a per-element check: `checkVisibility` already
+ * accounts for ancestors, and a descendant may override an ancestor's
+ * `visibility: hidden`.
+ */
+function isInheritedSkip(element: Element | null, cache: SkipCache): boolean {
+  if (!element) {
+    return false;
+  }
+  // The document root is never itself a reason to skip, and the ancestor
+  // checks below stop before it.
+  if (element === document.documentElement) {
+    return false;
+  }
+
+  const cached = cache.get(element);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let skip = false;
+  if (SKIP_TAG_NAMES.has(element.tagName)) {
+    skip = !(element.tagName === 'BUTTON' && isActionLabelElement(element));
+  }
+  if (!skip) {
+    skip = isEditableElement(element);
+  }
+  if (!skip) {
+    skip = isChromeNode(element);
+  }
+  if (!skip) {
+    skip = isNonReadableChromeNode(element);
+  }
+  if (!skip) {
+    skip = isInheritedSkip(element.parentElement, cache);
+  }
+
+  cache.set(element, skip);
+  return skip;
+}
+
+function isSkipped(element: Element | null, cache: SkipCache): boolean {
+  if (!element) {
+    return false;
+  }
+  return isInheritedSkip(element, cache) || isVisuallyHidden(element);
+}
+
 export function shouldSkipElement(element: Element | null): boolean {
   if (!element) {
     return true;
   }
-
-  let current: Element | null = element;
-  while (current) {
-    if (SKIP_TAG_NAMES.has(current.tagName)) {
-      return true;
-    }
-    if (isEditableElement(current)) {
-      return true;
-    }
-    current = current.parentElement;
-  }
-
-  if (isChromeElement(element) || isNonReadableChrome(element)) {
-    return true;
-  }
-
-  if (isVisuallyHidden(element)) {
-    return true;
-  }
-
-  return false;
+  return isSkipped(element, new WeakMap());
 }
 
 export function isMeaningfulText(text: string | null | undefined): boolean {
@@ -56,6 +90,7 @@ export type CollectedTextNode = {
 export type CollectTextNodesOptions = {
   viewportMarginPx?: number;
   onDeferSubtree?: (element: Element) => void;
+  isInScope?: (element: Element | null) => boolean;
 };
 
 function walkShadowRoots(element: Element, walk: (child: Element) => void): void {
@@ -78,14 +113,19 @@ function walkChildren(element: Element, walk: (child: Element) => void): void {
   walkShadowRoots(element, walk);
 }
 
-function collectAllTextNodes(root: ParentNode): CollectedTextNode[] {
+function collectAllTextNodes(
+  root: ParentNode,
+  isInScope?: (element: Element | null) => boolean,
+): CollectedTextNode[] {
+  const skipCache: SkipCache = new WeakMap();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const textNode = node as Text;
       if (!isMeaningfulText(textNode.textContent)) {
         return NodeFilter.FILTER_REJECT;
       }
-      if (shouldSkipElement(textNode.parentElement)) {
+      const parent = textNode.parentElement;
+      if (isSkipped(parent, skipCache) || (isInScope && !isInScope(parent))) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
@@ -109,11 +149,13 @@ function collectViewportTextNodes(
   root: Element,
   marginPx: number,
   onDeferSubtree?: (element: Element) => void,
+  isInScope?: (element: Element | null) => boolean,
 ): CollectedTextNode[] {
   const collected: CollectedTextNode[] = [];
+  const skipCache: SkipCache = new WeakMap();
 
   function walk(element: Element): void {
-    if (shouldSkipElement(element)) {
+    if (isSkipped(element, skipCache)) {
       return;
     }
 
@@ -140,7 +182,10 @@ function collectViewportTextNodes(
           continue;
         }
         const parent = textNode.parentElement;
-        if (!parent || shouldSkipElement(parent) || !isNearViewport(parent, marginPx)) {
+        if (!parent
+          || isSkipped(parent, skipCache)
+          || !isNearViewport(parent, marginPx)
+          || (isInScope && !isInScope(parent))) {
           continue;
         }
         collected.push({
@@ -168,8 +213,13 @@ export function collectTextNodes(
 ): CollectedTextNode[] {
   const marginPx = options?.viewportMarginPx;
   if (marginPx === undefined || !(root instanceof Element)) {
-    return collectAllTextNodes(root);
+    return collectAllTextNodes(root, options?.isInScope);
   }
 
-  return collectViewportTextNodes(root, marginPx, options?.onDeferSubtree);
+  return collectViewportTextNodes(
+    root,
+    marginPx,
+    options?.onDeferSubtree,
+    options?.isInScope,
+  );
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isMetadataElement, isShareElement } from '@/features/dom/skip-zones';
+import {
+  isBoilerplateElement,
+  isMetadataElement,
+  isShareElement,
+} from '@/features/dom/skip-zones';
 
 describe('isMetadataElement', () => {
   it('skips author byline and publish date regions', () => {
@@ -68,5 +72,45 @@ describe('isShareElement', () => {
 
     expect(isShareElement(document.querySelector('.share-buttons'))).toBe(true);
     expect(isShareElement(document.getElementById('keep'))).toBe(false);
+  });
+});
+
+describe('isBoilerplateElement', () => {
+  it('skips related, comments, newsletter, ads and pagination blocks', () => {
+    document.body.innerHTML = `
+      <div class="related-posts"><p id="related">Related story</p></div>
+      <section aria-label="Related articles"><p id="related-label">More</p></section>
+      <section id="comments"><p id="comment">Reader comment</p></section>
+      <div class="newsletter"><p id="newsletter">Subscribe</p></div>
+      <div class="ad-slot"><p id="ad">Buy this</p></div>
+      <nav class="pagination"><a id="pager" href="/2">Next</a></nav>
+      <p id="keep">Article text</p>
+    `;
+
+    for (const id of ['related', 'related-label', 'comment', 'newsletter', 'ad', 'pager']) {
+      expect(isBoilerplateElement(document.getElementById(id))).toBe(true);
+    }
+    expect(isBoilerplateElement(document.getElementById('keep'))).toBe(false);
+  });
+
+  it('never discards main content landmarks because of layout classes', () => {
+    document.body.innerHTML = `
+      <main class="has-sidebar popular-posts">
+        <h1>Feed title</h1>
+        <p id="keep">Main content</p>
+      </main>
+    `;
+
+    expect(isBoilerplateElement(document.getElementById('keep'))).toBe(false);
+  });
+
+  it('does not treat ordinary content classes as boilerplate', () => {
+    document.body.innerHTML = `
+      <article class="post card-list-square">
+        <p id="deck" class="article-deck">Article deck</p>
+      </article>
+    `;
+
+    expect(isBoilerplateElement(document.getElementById('deck'))).toBe(false);
   });
 });

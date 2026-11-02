@@ -27,7 +27,7 @@ export async function buildTranslatedPageInfo(
   const info = readPageInfo(doc, settings.copyIncludeLink);
   const chunks = buildChunks(info);
   if (chunks.length === 0) {
-    return formatPageInfo(info);
+    return formatPageInfo(info, settings.copySeparator);
   }
 
   const pageLang = resolveElementLang(doc.documentElement);
@@ -39,5 +39,5 @@ export async function buildTranslatedPageInfo(
     title: translated.get(TITLE_CHUNK_ID) ?? info.title,
     description: translated.get(DESCRIPTION_CHUNK_ID) ?? info.description,
     link: info.link,
-  });
+  }, settings.copySeparator);
 }

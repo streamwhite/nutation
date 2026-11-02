@@ -19,6 +19,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  copySeparator: ':',
   uiLocale: 'auto',
 };
 
@@ -54,5 +55,19 @@ describe('buildChatCompletionBody', () => {
       'zh-CN',
     );
     expect(body.model).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('omits temperature for anthropic', () => {
+    const body = buildChatCompletionBody(
+      {
+        ...settings,
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        model: 'claude-haiku-5-5',
+      },
+      [{ id: '0', text: 'Hello world' }],
+      'zh-CN',
+    );
+    expect(body).not.toHaveProperty('temperature');
   });
 });

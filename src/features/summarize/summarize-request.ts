@@ -1,5 +1,5 @@
 import { estimateMaxTokens } from '@/features/llm/request-body';
-import { resolveRequestModel } from '@/shared/providers';
+import { buildSamplingParams, resolveRequestModel } from '@/shared/providers';
 import { SUMMARIZE_MAX_OUTPUT_TOKENS } from '@/shared/constants';
 import type { ExtensionSettings } from '@/shared/settings';
 
@@ -27,7 +27,7 @@ export function buildSummarizeChatBody(
 ): Record<string, unknown> {
   return {
     model: resolveRequestModel(settings),
-    temperature: 0,
+    ...buildSamplingParams(settings.provider),
     max_tokens: estimateSummarizeMaxTokens(pageText),
     messages: [
       { role: 'system', content: getSummarizeSystemPrompt() },

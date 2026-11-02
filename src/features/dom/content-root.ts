@@ -14,6 +14,15 @@ const MAIN_ROOT_SELECTORS = MAIN_CONTENT_SELECTORS.filter((selector) => (
   selector === 'main' || selector === '[role="main"]'
 ));
 
+const ARTICLE_BODY_SELECTORS = [
+  '[itemprop="articleBody"]',
+  '.post-content',
+  '.entry-content',
+  '.article-content',
+  '.article-body',
+  '#article-body',
+] as const;
+
 function matchesMainContentSelector(element: Element): boolean {
   return MAIN_CONTENT_SELECTORS.some((selector) => {
     try {
@@ -113,7 +122,7 @@ function containsArticleHeadline(element: Element): boolean {
   return false;
 }
 
-function isChromeNode(element: Element): boolean {
+export function isChromeNode(element: Element): boolean {
   const role = element.getAttribute('role')?.toLowerCase();
   if (role === 'banner' && containsArticleHeadline(element)) {
     return false;
@@ -162,9 +171,9 @@ function scoreTextLength(element: Element): number {
   return text.replace(/\s+/g, ' ').trim().length;
 }
 
-function isFeedHeadlineHeading(element: Element): boolean {
+export function isFeedHeadlineHeading(element: Element): boolean {
   const tag = element.tagName;
-  if (tag !== 'H1' && tag !== 'H2') {
+  if (tag !== 'H1' && tag !== 'H2' && tag !== 'H3') {
     return false;
   }
   const text = element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
@@ -211,6 +220,55 @@ export function findMainContentRoot(
   }
 
   return body;
+}
+
+function findLargestTextMatch(doc: Document, selector: string): Element | null {
+  let best: Element | null = null;
+  let bestScore = 0;
+  for (const match of doc.querySelectorAll(selector)) {
+    const score = scoreTextLength(match);
+    if (score > bestScore) {
+      best = match;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function findArticleBodyMatch(doc: Document): Element | null {
+  let best: Element | null = null;
+  let bestScore = 0;
+  for (const selector of ARTICLE_BODY_SELECTORS) {
+    for (const match of doc.querySelectorAll(selector)) {
+      const score = scoreTextLength(match);
+      if (score > bestScore) {
+        best = match;
+        bestScore = score;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Article/detail pages should only translate the story body. Pages without a
+ * main landmark often still mark the body with an article-specific selector.
+ */
+export function findArticleContentRoot(doc: Document = document): Element {
+  const body = doc.body ?? doc.documentElement;
+  const main = findMainContentRoot(doc);
+  const hasMainLandmark = main !== body;
+  const articleBody = findArticleBodyMatch(doc);
+
+  if (articleBody && (!hasMainLandmark || main.contains(articleBody))) {
+    return articleBody;
+  }
+
+  if (hasMainLandmark) {
+    return main;
+  }
+
+  return articleBody ?? findLargestTextMatch(doc, 'article') ?? body;
 }
 
 export function findCollectionRoot(doc: Document = document): Element {

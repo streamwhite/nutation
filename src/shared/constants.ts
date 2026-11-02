@@ -4,6 +4,7 @@ export const SKIP_TAG_NAMES = new Set([
   'NOSCRIPT',
   'TEXTAREA',
   'INPUT',
+  'BUTTON',
   'CODE',
   'PRE',
   'SVG',
@@ -28,13 +29,9 @@ export const CHROME_ROLE_NAMES = new Set([
   'toolbar',
 ]);
 
-export const METADATA_TAG_NAMES = new Set([
-  'TIME',
-]);
+export const METADATA_TAG_NAMES = new Set(['TIME']);
 
-export const METADATA_ROLE_NAMES = new Set([
-  'doc-subtitle',
-]);
+export const METADATA_ROLE_NAMES = new Set(['doc-subtitle']);
 
 export const METADATA_CLASS_TOKENS = [
   'author',
@@ -83,6 +80,93 @@ export const SHARE_CLASS_TOKENS = [
 
 export const SHARE_LABEL_PATTERN = /\bshare\b|\btweet\b|\bpin\b|\bfollow\b/;
 
+// Sections that are not the page's own content: related stories, comments,
+// newsletter promos, ads, pagination, etc. Left untranslated on purpose.
+export const BOILERPLATE_CLASS_TOKENS = [
+  'comment',
+  'comments',
+  'comment-list',
+  'comment-section',
+  'comment-form',
+  'disqus',
+  'related',
+  'related-posts',
+  'related-articles',
+  'related-stories',
+  'related-content',
+  'recommended',
+  'recommendation',
+  'recommendations',
+  'more-stories',
+  'more-news',
+  'more-from',
+  'read-next',
+  'read-also',
+  'also-read',
+  'you-may-like',
+  'you-might-like',
+  'most-read',
+  'most-popular',
+  'top-stories',
+  'newsletter',
+  'subscribe',
+  'subscription',
+  'signup',
+  'advertisement',
+  'advert',
+  'ad-slot',
+  'sponsored',
+  'promo',
+  'promotion',
+  'cookie',
+  'consent',
+  'gdpr',
+  'pagination',
+  'pager',
+  'author-bio',
+  'author-card',
+  'outbrain',
+  'taboola',
+  'zergnet',
+] as const;
+
+export const BOILERPLATE_LABEL_PATTERN = /\brelated\b|\brecommended\b|\bmore stories\b|\byou may (?:also )?like\b|\bcomments?\b|\bnewsletter\b|\bsubscribe\b|\bpromoted\b|\bsponsored\b/i;
+
+export const LISTING_DESCRIPTION_CLASS_TOKENS = [
+  'summary',
+  'description',
+  'desc',
+  'excerpt',
+  'teaser',
+  'dek',
+  'standfirst',
+  'subtitle',
+  'snippet',
+  'lede',
+  'blurb',
+  'abstract',
+] as const;
+
+export const LISTING_DESCRIPTION_ITEMPROPS = new Set([
+  'description',
+  'abstract',
+]);
+
+// "Read more" style affordances are part of the content people interact with,
+// so keep them translatable even inside otherwise-skipped controls.
+export const ACTION_CLASS_TOKENS = [
+  'read-more',
+  'readmore',
+  'more-link',
+  'continue-reading',
+  'read-full',
+  'read-article',
+  'more-button',
+  'action-link',
+] as const;
+
+export const ACTION_TEXT_PATTERN = /^(?:read|view|see|show|continue|learn)\b[^\n]{0,40}\b(?:more|article|story|post|details|full|review|reading|here)\b|^(?:阅读|查看|继续|显示|展开|浏览).{0,12}(?:更多|全文|详情|文章)|^更多/i;
+
 export const HEADLINE_CLASS_TOKENS = [
   'headline',
   'page-headline',
@@ -93,14 +177,7 @@ export const HEADLINE_CLASS_TOKENS = [
   'article-headline',
 ] as const;
 
-export const HEADING_TAG_NAMES = new Set([
-  'H1',
-  'H2',
-  'H3',
-  'H4',
-  'H5',
-  'H6',
-]);
+export const HEADING_TAG_NAMES = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 
 export const MAIN_CONTENT_SELECTORS = [
   'main',
@@ -210,6 +287,8 @@ export const VISUALIZATION_EMBED_SELECTORS = [
 
 export const MUTATION_DEBOUNCE_MS = 200;
 export const FLUSH_COALESCE_MS = 16;
+// Coalesces DOM collections after mutations and rate-limits scroll-triggered
+// collections, so new content starts translating while the user scrolls.
 export const QUEUE_VISIBLE_DEBOUNCE_MS = 150;
 export const TRANSLATE_BATCH_SIZE = 6;
 export const TRANSLATE_BATCH_MAX_CHARS = 700;
@@ -237,7 +316,7 @@ export const RETRYABLE_HTTP_STATUSES = [429, 502, 503, 504] as const;
 export const MIN_TRANSLATE_TEXT_LENGTH = 2;
 // Prefetch ~one viewport below the fold so content is translated before it
 // scrolls into view. Also drives the viewport collection margin.
-export const INTERSECTION_ROOT_MARGIN = '800px';
+export const INTERSECTION_ROOT_MARGIN = '600px';
 export const MEMORY_CACHE_MAX_ENTRIES = 800;
 export const TRANSLATION_CACHE_MAX_ENTRIES = 1_000_000;
 export const TRANSLATION_CACHE_MIN_ENTRIES = 1_000;
@@ -311,7 +390,7 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const POPUP_STATUS_POLL_MS = 400;
-export const TIMING_LOG_PREFIX = '[PageTranslate:timing]';
+export const TIMING_LOG_PREFIX = '[Nutation:timing]';
 
 export const OPENCC_T2S_FROM = 'twp';
 export const OPENCC_T2S_TO = 'cn';

@@ -35,6 +35,18 @@ describe('shouldSkipElement', () => {
     document.body.innerHTML = '<div id="edit" contenteditable="true">edit me</div>';
     expect(shouldSkipElement(document.getElementById('edit'))).toBe(true);
   });
+
+  it('keeps read-more style buttons but skips ordinary buttons', () => {
+    document.body.innerHTML = `
+      <button id="read">Read more</button>
+      <button id="play">Play video</button>
+      <a id="cta" class="cta" href="/story">Read more</a>
+    `;
+
+    expect(shouldSkipElement(document.getElementById('read'))).toBe(false);
+    expect(shouldSkipElement(document.getElementById('play'))).toBe(true);
+    expect(shouldSkipElement(document.getElementById('cta'))).toBe(false);
+  });
 });
 
 describe('collectTextNodes', () => {

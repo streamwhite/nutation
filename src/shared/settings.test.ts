@@ -125,6 +125,14 @@ describe('parseSettings', () => {
     expect(parseSettings({ copyIncludeLink: false }).copyIncludeLink).toBe(false);
   });
 
+  it('defaults the copy separator to a colon', () => {
+    expect(getDefaultSettings().copySeparator).toBe(':');
+    expect(parseSettings({}).copySeparator).toBe(':');
+    expect(parseSettings({ copySeparator: '\n' }).copySeparator).toBe('\n');
+    expect(parseSettings({ copySeparator: ' | ' }).copySeparator).toBe(' | ');
+    expect(parseSettings({ copySeparator: '' }).copySeparator).toBe(':');
+  });
+
   it('defaults the interface locale to auto', () => {
     expect(getDefaultSettings().uiLocale).toBe('auto');
     expect(parseSettings({}).uiLocale).toBe('auto');

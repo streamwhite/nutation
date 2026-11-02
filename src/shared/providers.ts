@@ -15,8 +15,10 @@ export const PROVIDER_IDS = [
   'openrouter',
   'vercel',
   'openai',
+  'anthropic',
   'gemini',
   'deepseek',
+  'xai',
   'mistral',
   'custom',
 ] as const;
@@ -27,8 +29,10 @@ export const PROVIDER_LABEL_IDS: Record<ProviderId, MessageId> = {
   openrouter: 'options.provider.openrouter',
   vercel: 'options.provider.vercel',
   openai: 'options.provider.openai',
+  anthropic: 'options.provider.anthropic',
   gemini: 'options.provider.gemini',
   deepseek: 'options.provider.deepseek',
+  xai: 'options.provider.xai',
   mistral: 'options.provider.mistral',
   custom: 'options.provider.custom',
 };
@@ -74,6 +78,13 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
     defaultModel: 'gpt-4o-mini',
     modelPlaceholder: 'gpt-4o-mini',
   },
+  anthropic: {
+    id: 'anthropic',
+    category: 'direct',
+    baseUrl: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-haiku-5-5',
+    modelPlaceholder: 'claude-haiku-5-5',
+  },
   gemini: {
     id: 'gemini',
     category: 'direct',
@@ -87,6 +98,13 @@ export const PROVIDER_PRESETS: Record<ProviderId, ProviderPreset> = {
     baseUrl: 'https://api.deepseek.com/v1',
     defaultModel: 'deepseek-v4-flash',
     modelPlaceholder: 'deepseek-v4-flash',
+  },
+  xai: {
+    id: 'xai',
+    category: 'direct',
+    baseUrl: 'https://api.x.ai/v1',
+    defaultModel: 'grok-4.7',
+    modelPlaceholder: 'grok-4.7',
   },
   mistral: {
     id: 'mistral',
@@ -142,8 +160,14 @@ export function inferProviderFromBaseUrl(baseUrl: string): ProviderId {
   if (normalized.includes('api.openai.com')) {
     return 'openai';
   }
+  if (normalized.includes('api.anthropic.com')) {
+    return 'anthropic';
+  }
   if (normalized.includes('api.deepseek.com')) {
     return 'deepseek';
+  }
+  if (normalized.includes('api.x.ai')) {
+    return 'xai';
   }
   if (normalized.includes('api.mistral.ai')) {
     return 'mistral';
@@ -196,6 +220,17 @@ export function resolveRequestModel(
   return normalizeModelName(settings.provider, settings.model);
 }
 
+/**
+ * Sampling params for OpenAI-compatible request bodies. Anthropic's Claude 4.7+
+ * models reject `temperature` values below 1, so leave it out for Anthropic.
+ */
+export function buildSamplingParams(provider: ProviderId): { temperature?: number } {
+  if (provider === 'anthropic') {
+    return {};
+  }
+  return { temperature: 0 };
+}
+
 export function stripGeminiModelsPrefix(model: string): string {
   let normalized = stripGoogleProviderPrefix(model.trim());
   while (normalized.startsWith(GEMINI_MODELS_PREFIX)) {
@@ -212,8 +247,8 @@ export function toGeminiInteractionModelId(model: string): string {
   return normalizeGeminiModel(model);
 }
 
-export const EXTENSION_TITLE = 'Page Translate';
-export const OPENROUTER_REFERER = 'https://page-translate.extension';
+export const EXTENSION_TITLE = 'Nutation';
+export const OPENROUTER_REFERER = 'https://nutation.extension';
 
 export function buildRequestHeaders(
   settings: Pick<ExtensionSettings, 'apiKey' | 'provider'>,

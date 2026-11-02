@@ -23,6 +23,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  copySeparator: ':',
   uiLocale: 'auto',
 };
 
@@ -96,6 +97,15 @@ describe('formatPageInfo', () => {
   it('joins non-empty parts with a colon', () => {
     expect(formatPageInfo({ title: 'T', description: 'D', link: 'L' })).toBe('T:D:L');
     expect(formatPageInfo({ title: 'T', description: '', link: 'L' })).toBe('T:L');
+  });
+
+  it('uses a custom separator', () => {
+    expect(formatPageInfo({ title: 'T', description: 'D', link: 'L' }, ' | ')).toBe('T | D | L');
+  });
+
+  it('decodes \\n and \\t escapes in the separator', () => {
+    expect(formatPageInfo({ title: 'T', description: 'D', link: 'L' }, '\\n')).toBe('T\nD\nL');
+    expect(formatPageInfo({ title: 'T', description: 'D', link: 'L' }, '\\t')).toBe('T\tD\tL');
   });
 });
 

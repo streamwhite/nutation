@@ -15,6 +15,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  copySeparator: ':',
   uiLocale: 'auto',
 };
 

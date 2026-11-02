@@ -80,9 +80,22 @@ export function readPageInfo(doc: Document = document, includeLink = true): Page
   };
 }
 
-export function formatPageInfo(info: PageInfo): string {
+const SEPARATOR_ESCAPE_PATTERN = /\\n|\\t/g;
+const SEPARATOR_ESCAPES: Record<string, string> = {
+  '\\n': '\n',
+  '\\t': '\t',
+};
+
+export function decodeSeparator(raw: string): string {
+  return raw.replace(SEPARATOR_ESCAPE_PATTERN, (match) => SEPARATOR_ESCAPES[match] ?? match);
+}
+
+export function formatPageInfo(
+  info: PageInfo,
+  separator: string = PAGE_INFO_SEPARATOR,
+): string {
   return [info.title, info.description, info.link]
     .map((part) => part.trim())
     .filter(Boolean)
-    .join(PAGE_INFO_SEPARATOR);
+    .join(decodeSeparator(separator));
 }

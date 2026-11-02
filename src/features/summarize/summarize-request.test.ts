@@ -19,6 +19,7 @@ const settings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  copySeparator: ':',
   uiLocale: 'auto',
 };
 
@@ -38,5 +39,19 @@ describe('summarize request body', () => {
       { role: 'system', content: getSummarizeSystemPrompt() },
       { role: 'user', content: buildSummarizeUserPrompt('Hello world article', 'en') },
     ]);
+  });
+
+  it('omits temperature for anthropic', () => {
+    const body = buildSummarizeChatBody(
+      {
+        ...settings,
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        model: 'claude-haiku-5-5',
+      },
+      'Hello world article',
+      'en',
+    );
+    expect(body).not.toHaveProperty('temperature');
   });
 });

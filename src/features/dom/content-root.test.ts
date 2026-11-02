@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { collectTextNodes } from '@/features/dom/collect-text';
-import { findCollectionRoot, findMainContentRoot, isChromeElement } from '@/features/dom/content-root';
+import {
+  findArticleContentRoot,
+  findCollectionRoot,
+  findMainContentRoot,
+  isChromeElement,
+} from '@/features/dom/content-root';
 
 describe('isChromeElement', () => {
   it('detects nav header footer aside and roles', () => {
@@ -84,6 +89,39 @@ describe('findMainContentRoot', () => {
     document.body.innerHTML = '<div id="wrap"><p>Short</p></div>';
     const root = findMainContentRoot(document);
     expect(root).toBe(document.body);
+  });
+});
+
+describe('findArticleContentRoot', () => {
+  it('prefers an article body selector over the whole page', () => {
+    document.body.innerHTML = `
+      <header><h1>Site title</h1></header>
+      <article>
+        <div class="entry-content" id="entry"><p>${'Post body '.repeat(20)}</p></div>
+        <section class="comments"><p>Comment text</p></section>
+      </article>
+    `;
+
+    expect(findArticleContentRoot(document).id).toBe('entry');
+  });
+
+  it('falls back to the largest article when there is no main landmark', () => {
+    document.body.innerHTML = `
+      <header><h1>Site title</h1></header>
+      <article id="post"><p>${'Article body text '.repeat(20)}</p></article>
+      <footer>Footer</footer>
+    `;
+
+    expect(findArticleContentRoot(document).id).toBe('post');
+  });
+
+  it('uses main when no article-specific body exists', () => {
+    document.body.innerHTML = `
+      <header>Site</header>
+      <main id="main"><p>${'Primary content '.repeat(20)}</p></main>
+    `;
+
+    expect(findArticleContentRoot(document).id).toBe('main');
   });
 });
 

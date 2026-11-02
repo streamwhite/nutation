@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRequestHeaders,
+  buildSamplingParams,
   normalizeGeminiModel,
   normalizeModelName,
 } from '@/shared/providers';
@@ -19,8 +20,17 @@ const baseSettings: ExtensionSettings = {
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
   copyIncludeLink: true,
+  copySeparator: ':',
   uiLocale: 'auto',
 };
+
+describe('buildSamplingParams', () => {
+  it('omits temperature for anthropic models', () => {
+    expect(buildSamplingParams('anthropic')).toEqual({});
+    expect(buildSamplingParams('openai')).toEqual({ temperature: 0 });
+    expect(buildSamplingParams('xai')).toEqual({ temperature: 0 });
+  });
+});
 
 describe('normalizeGeminiModel', () => {
   it('strips models/ and google/ prefixes without remapping model ids', () => {
@@ -68,6 +78,14 @@ describe('buildRequestHeaders', () => {
     expect(headers.Authorization).toBe('Bearer test-key');
     expect(headers['HTTP-Referer']).toBeTruthy();
     expect(headers['X-Title']).toBeTruthy();
+  });
+
+  it('uses bearer auth for anthropic and xai', () => {
+    for (const provider of ['anthropic', 'xai'] as const) {
+      const headers = buildRequestHeaders({ provider, apiKey: 'test-key' });
+      expect(headers.Authorization).toBe('Bearer test-key');
+      expect(headers['HTTP-Referer']).toBeUndefined();
+    }
   });
 
   it('uses bearer and goog api key for gemini', () => {

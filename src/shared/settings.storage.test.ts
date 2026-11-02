@@ -40,6 +40,7 @@ describe('saveSettings', () => {
       summaryPosition: 'right',
       cacheMaxEntries: 1_000_000,
       copyIncludeLink: true,
+      copySeparator: ':',
       uiLocale: 'auto',
     });
 
@@ -90,6 +91,7 @@ describe('loadSettings model normalization', () => {
       summaryPosition: 'right',
       cacheMaxEntries: 1_000_000,
       copyIncludeLink: true,
+      copySeparator: ':',
       uiLocale: 'auto',
     });
 

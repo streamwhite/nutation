@@ -5,7 +5,7 @@ import {
   API_MAX_TOKENS_CHAR_RATIO,
   API_MAX_TOKENS_OVERHEAD,
 } from '@/shared/constants';
-import { resolveRequestModel } from '@/shared/providers';
+import { buildSamplingParams, resolveRequestModel } from '@/shared/providers';
 import type { ExtensionSettings } from '@/shared/settings';
 
 const SYSTEM_PROMPT = [
@@ -40,7 +40,7 @@ export function buildChatCompletionBody(
 ): Record<string, unknown> {
   return {
     model: resolveRequestModel(settings),
-    temperature: 0,
+    ...buildSamplingParams(settings.provider),
     max_tokens: estimateMaxTokens(texts),
     messages: [
       { role: 'system', content: getTranslationSystemPrompt() },

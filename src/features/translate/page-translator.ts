@@ -1,7 +1,14 @@
 import { collectTextNodes } from '@/features/dom/collect-text';
+import { createContentScopeFilter, type ContentScopeFilter } from '@/features/dom/content-scope';
 import { findCollectionRoot } from '@/features/dom/content-root';
 import { isLikelyListingFeed } from '@/features/dom/page-kind';
-import { createDebouncedCallback, observeMutations, observeVisibleElements } from '@/features/dom/observers';
+import {
+  createDebouncedCallback,
+  createThrottledCallback,
+  collectFeedContentRoots,
+  observeMutations,
+  observeVisibleElements,
+} from '@/features/dom/observers';
 import { TextNodeRegistry } from '@/features/dom/registry';
 import {
   dedupeTextChunks,
@@ -53,7 +60,9 @@ export class PageTranslator {
   private concurrency = TRANSLATE_CONCURRENCY;
   private translationMode: TranslationMode = DEFAULT_TRANSLATION_MODE;
   private isListingFeed = false;
-  private bulkInitialCollectPending = true;
+  private scopeFilter: ContentScopeFilter | null = null;
+  private pendingScopeRoots: Element[] = [];
+  private initialCollectDone = false;
   private bulkInitialPackPending = true;
   private contentRoot: Element | null = null;
   private mutationObserver: MutationObserver | null = null;
@@ -74,6 +83,12 @@ export class PageTranslator {
     FLUSH_COALESCE_MS,
   );
   private readonly scheduleQueueVisible = createDebouncedCallback(
+    () => {
+      this.queueVisibleCandidates();
+    },
+    QUEUE_VISIBLE_DEBOUNCE_MS,
+  );
+  private readonly scheduleScrollCollect = createThrottledCallback(
     () => {
       this.queueVisibleCandidates();
     },
@@ -106,7 +121,7 @@ export class PageTranslator {
     this.targetLang = targetLang;
     this.concurrency = TRANSLATE_CONCURRENCY;
     this.translationMode = settings.translationMode;
-    this.bulkInitialCollectPending = true;
+    this.initialCollectDone = false;
     this.bulkInitialPackPending = true;
     this.inPageTranslator = new InPageTranslator(settings, targetLang, this.timing, pageLang);
     this.inPageTranslator.warmProvider();
@@ -119,6 +134,8 @@ export class PageTranslator {
     this.active = true;
     this.contentRoot = findCollectionRoot(document);
     this.isListingFeed = isLikelyListingFeed(document, document.location?.href ?? '');
+    this.scopeFilter = createContentScopeFilter(document, this.isListingFeed);
+    this.pendingScopeRoots = [];
     this.ensureObservers();
     this.bindScrollResize();
     this.queueVisibleCandidates();
@@ -138,6 +155,7 @@ export class PageTranslator {
     }
     this.scheduleFlush.cancel();
     this.scheduleQueueVisible.cancel();
+    this.scheduleScrollCollect.cancel();
     this.unbindScrollResize();
     this.teardownObservers();
     this.registry.restoreAll();
@@ -148,6 +166,8 @@ export class PageTranslator {
     this.titleOriginal = null;
     this.lastTitleTranslation = null;
     this.contentRoot = null;
+    this.scopeFilter = null;
+    this.pendingScopeRoots = [];
     this.error = null;
     this.timing.freeze();
     this.timing.logSummary('stop');
@@ -182,15 +202,28 @@ export class PageTranslator {
     }
 
     if (!this.mutationObserver) {
-      this.mutationObserver = observeMutations(this.contentRoot, () => {
+      this.mutationObserver = observeMutations(this.contentRoot, (records) => {
         if (!this.active) {
           return;
+        }
+        if (this.isListingFeed) {
+          this.queueScopeRoots(collectFeedContentRoots(records));
         }
         this.scheduleQueueVisible();
       });
     }
 
     this.ensureTitleObserver();
+  }
+
+  private queueScopeRoots(added: Element[]): void {
+    for (const root of added) {
+      if (this.pendingScopeRoots.some((pending) => pending.contains(root))) {
+        continue;
+      }
+      this.pendingScopeRoots = this.pendingScopeRoots.filter((pending) => !root.contains(pending));
+      this.pendingScopeRoots.push(root);
+    }
   }
 
   private ensureTitleObserver(): void {
@@ -220,8 +253,8 @@ export class PageTranslator {
       return;
     }
     this.scrollResizeBound = true;
-    window.addEventListener('scroll', this.scheduleQueueVisible, { passive: true });
-    window.addEventListener('resize', this.scheduleQueueVisible, { passive: true });
+    window.addEventListener('scroll', this.scheduleScrollCollect, { passive: true });
+    window.addEventListener('resize', this.scheduleScrollCollect, { passive: true });
   }
 
   private unbindScrollResize(): void {
@@ -229,8 +262,8 @@ export class PageTranslator {
       return;
     }
     this.scrollResizeBound = false;
-    window.removeEventListener('scroll', this.scheduleQueueVisible);
-    window.removeEventListener('resize', this.scheduleQueueVisible);
+    window.removeEventListener('scroll', this.scheduleScrollCollect);
+    window.removeEventListener('resize', this.scheduleScrollCollect);
   }
 
   private teardownObservers(): void {
@@ -285,16 +318,29 @@ export class PageTranslator {
     const root = this.getRoot();
     const deferredParents = new Set<Element>();
     const useViewport = this.shouldCollectNearViewport();
+    // Listing scopes are built once and extended with appended feed items.
+    // Rescanning the whole feed here would make every scroll cost grow with
+    // the amount of content already loaded.
+    if (!this.scopeFilter) {
+      this.scopeFilter = createContentScopeFilter(document, this.isListingFeed);
+    } else if (this.pendingScopeRoots.length > 0) {
+      this.scopeFilter.addRoots?.(this.pendingScopeRoots);
+      this.pendingScopeRoots = [];
+    }
+    const scopeFilter: ContentScopeFilter = this.scopeFilter;
 
     this.timing.start('collect_dom');
-    const collected = collectTextNodes(root, useViewport
-      ? {
-        viewportMarginPx: VIEWPORT_MARGIN_PX,
-        onDeferSubtree: (element) => {
-          deferredParents.add(element);
-        },
-      }
-      : undefined);
+    const collected = collectTextNodes(root, {
+      ...(useViewport
+        ? {
+          viewportMarginPx: VIEWPORT_MARGIN_PX,
+          onDeferSubtree: (element: Element) => {
+            deferredParents.add(element);
+          },
+        }
+        : {}),
+      isInScope: scopeFilter,
+    });
     this.timing.end('collect_dom');
 
     let enqueued = false;
@@ -314,8 +360,8 @@ export class PageTranslator {
       this.requestFlush();
     }
 
-    if (this.translationMode === 'bulk' && this.bulkInitialCollectPending) {
-      this.bulkInitialCollectPending = false;
+    if (!this.initialCollectDone) {
+      this.initialCollectDone = true;
     }
 
     this.intersectionObserver?.disconnect();
@@ -329,7 +375,10 @@ export class PageTranslator {
         return;
       }
       this.timing.start('collect_dom');
-      const visible = collectTextNodes(element, { viewportMarginPx: VIEWPORT_MARGIN_PX });
+      const visible = collectTextNodes(element, {
+        viewportMarginPx: VIEWPORT_MARGIN_PX,
+        isInScope: this.scopeFilter ?? undefined,
+      });
       this.timing.end('collect_dom');
       for (const item of visible) {
         if (!shouldTranslateText(item.text, MIN_TRANSLATE_TEXT_LENGTH)) {
@@ -342,10 +391,14 @@ export class PageTranslator {
   }
 
   private shouldCollectNearViewport(): boolean {
-    if (this.translationMode === 'progressive') {
-      return !this.isListingFeed;
+    if (!this.initialCollectDone) {
+      // The first pass follows the mode: bulk translates the whole page,
+      // progressive starts with what is close to the viewport (except listing
+      // feeds, whose items are part of the loaded page).
+      return this.translationMode === 'progressive' && !this.isListingFeed;
     }
-    return !this.bulkInitialCollectPending;
+    // Later passes are scroll-triggered, so scan only the viewport band.
+    return true;
   }
 
   private buildChunksFromPending(): TextChunk[] {

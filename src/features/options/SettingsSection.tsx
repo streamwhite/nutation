@@ -57,6 +57,7 @@ type Draft = {
   summaryPosition: SummaryPosition;
   autoRecoverContentScript: boolean;
   copyIncludeLink: boolean;
+  copySeparator: string;
   uiLocale: LocaleSetting;
 };
 
@@ -77,6 +78,7 @@ function draftFromSettings(settings: ExtensionSettings): Draft {
     summaryPosition: settings.summaryPosition,
     autoRecoverContentScript: settings.autoRecoverContentScript,
     copyIncludeLink: settings.copyIncludeLink,
+    copySeparator: settings.copySeparator,
     uiLocale: settings.uiLocale,
   };
 }
@@ -139,6 +141,7 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
         summaryPosition: draft.summaryPosition,
         autoRecoverContentScript: draft.autoRecoverContentScript,
         copyIncludeLink: draft.copyIncludeLink,
+        copySeparator: draft.copySeparator,
         uiLocale: draft.uiLocale,
       });
       setDraft((current) => ({ ...current, model: draft.model.trim() }));
@@ -324,6 +327,23 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
             </div>
             <p className="text-xs text-muted-foreground">
               {intl.formatMessage({ id: 'options.copyIncludeLinkHint' })}
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="copy-separator">
+              {intl.formatMessage({ id: 'options.copySeparator' })}
+            </Label>
+            <Input
+              id="copy-separator"
+              value={draft.copySeparator}
+              spellCheck={false}
+              autoComplete="off"
+              placeholder={intl.formatMessage({ id: 'options.copySeparatorPlaceholder' })}
+              onChange={(event) => patchDraft({ copySeparator: event.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              {intl.formatMessage({ id: 'options.copySeparatorHint' })}
             </p>
           </div>
 

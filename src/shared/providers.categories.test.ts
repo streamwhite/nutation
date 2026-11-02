@@ -15,6 +15,10 @@ describe('provider categories', () => {
     expect(gateways).toEqual(['openrouter', 'vercel']);
     expect(direct).toContain('gemini');
     expect(direct).toContain('openai');
+    expect(direct).toContain('anthropic');
+    expect(direct).toContain('deepseek');
+    expect(direct).toContain('xai');
+    expect(direct).toContain('mistral');
     expect(direct).toContain('custom');
     expect(getMessages('en')[PROVIDER_CATEGORY_LABEL_IDS.gateway]).toBe('API gateways');
     expect(PROVIDER_IDS.length).toBe(gateways.length + direct.length);
@@ -43,6 +47,8 @@ describe('inferProviderFromBaseUrl', () => {
     expect(inferProviderFromBaseUrl('https://ai-gateway.vercel.sh/v1')).toBe('vercel');
     expect(inferProviderFromBaseUrl('https://api.deepseek.com/v1')).toBe('deepseek');
     expect(inferProviderFromBaseUrl('https://api.mistral.ai/v1')).toBe('mistral');
+    expect(inferProviderFromBaseUrl('https://api.anthropic.com/v1')).toBe('anthropic');
+    expect(inferProviderFromBaseUrl('https://api.x.ai/v1')).toBe('xai');
     expect(inferProviderFromBaseUrl('https://generativelanguage.googleapis.com/v1beta/openai'))
       .toBe('gemini');
     expect(inferProviderFromBaseUrl('https://api.example.com/v1')).toBe('custom');
