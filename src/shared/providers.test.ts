@@ -11,6 +11,7 @@ const baseSettings: ExtensionSettings = {
   provider: 'openrouter',
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKey: 'test-key',
+  allowChinaDataTransfer: false,
   model: 'deepseek/deepseek-v4-flash',
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,

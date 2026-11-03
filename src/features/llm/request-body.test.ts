@@ -10,6 +10,7 @@ const settings: ExtensionSettings = {
   provider: 'gemini',
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
   apiKey: 'key',
+  allowChinaDataTransfer: false,
   model: 'gemini-2.5-flash-lite',
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,

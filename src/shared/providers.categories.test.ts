@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getProviderPreset,
   inferProviderFromBaseUrl,
+  isProviderAllowed,
   listProvidersByCategory,
   PROVIDER_CATEGORY_LABEL_IDS,
   PROVIDER_IDS,
@@ -26,6 +27,12 @@ describe('provider categories', () => {
 
   it('uses DeepSeek-V4-Flash model id for deepseek provider', () => {
     expect(getProviderPreset('deepseek').defaultModel).toBe('deepseek-v4-flash');
+  });
+
+  it('requires consent for providers that send data to China', () => {
+    expect(isProviderAllowed('deepseek', false)).toBe(false);
+    expect(isProviderAllowed('deepseek', true)).toBe(true);
+    expect(isProviderAllowed('openai', false)).toBe(true);
   });
 });
 

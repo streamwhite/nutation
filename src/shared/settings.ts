@@ -1,4 +1,3 @@
-import { resolveDefaultApiKey } from '@/shared/api-key';
 import { browser } from 'wxt/browser';
 import { DEFAULT_LOCALE, formatMessage, resolveLocaleSetting, type LocaleSetting } from '@/i18n';
 import { STORAGE_KEYS, PAGE_INFO_SEPARATOR, TRANSLATION_CACHE_MAX_ENTRIES } from '@/shared/constants';
@@ -28,6 +27,7 @@ import {
 
 export type ExtensionSettings = {
   provider: ProviderId;
+  allowChinaDataTransfer: boolean;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -51,8 +51,9 @@ export function getDefaultSettings(): ExtensionSettings {
 
   return {
     provider,
+    allowChinaDataTransfer: provider === 'deepseek',
     baseUrl: import.meta.env.VITE_DEFAULT_BASE_URL || preset.baseUrl,
-    apiKey: resolveDefaultApiKey(),
+    apiKey: '',
     model: import.meta.env.VITE_DEFAULT_MODEL || preset.defaultModel,
     targetLang: import.meta.env.VITE_DEFAULT_TARGET_LANG || 'zh-CN',
     autoRecoverContentScript: true,
@@ -87,20 +88,30 @@ export function parseSettings(raw: unknown): ExtensionSettings {
   const provider = isProviderId(value.provider)
     ? value.provider
     : inferProviderFromBaseUrl(inferredBaseUrl);
-  const baseUrl = provider === 'custom'
+  const allowChinaDataTransfer = value.allowChinaDataTransfer === true;
+  const providerWithoutChinaConsent = provider === 'deepseek' && !allowChinaDataTransfer;
+  const fallbackProvider = defaults.provider === 'deepseek' || defaults.provider === 'custom'
+    ? 'openai'
+    : defaults.provider;
+  const resolvedProvider = providerWithoutChinaConsent ? fallbackProvider : provider;
+  const baseUrl = resolvedProvider === 'custom'
     ? (rawBaseUrl.trim() ? normalizeCustomChatCompletionsUrl(rawBaseUrl) : '')
-    : resolveProviderBaseUrl(provider);
+    : resolveProviderBaseUrl(resolvedProvider);
   const rawModel = typeof value.model === 'string' && value.model.trim()
     ? value.model.trim()
     : defaults.model;
+  const model = providerWithoutChinaConsent
+    ? getProviderPreset(resolvedProvider).defaultModel
+    : normalizeModelName(resolvedProvider, rawModel);
 
   return {
-    provider,
+    provider: resolvedProvider,
+    allowChinaDataTransfer,
     baseUrl,
     apiKey: typeof value.apiKey === 'string' && value.apiKey.trim()
       ? value.apiKey
       : defaults.apiKey,
-    model: normalizeModelName(provider, rawModel),
+    model,
     targetLang: typeof value.targetLang === 'string' && value.targetLang.trim()
       ? resolveTargetLanguageCode(value.targetLang, defaults.targetLang)
       : defaults.targetLang,
@@ -145,9 +156,13 @@ function shouldPersistMigratedSettings(
     return false;
   }
   const storedModel = (raw as Partial<ExtensionSettings>).model;
-  return typeof storedModel === 'string'
+  const storedProvider = (raw as Partial<ExtensionSettings>).provider;
+  const providerChanged = isProviderId(storedProvider) && storedProvider !== parsed.provider;
+  return providerChanged || (
+    typeof storedModel === 'string'
     && storedModel.trim() !== ''
-    && storedModel.trim() !== parsed.model;
+    && storedModel.trim() !== parsed.model
+  );
 }
 
 export async function loadSettings(): Promise<ExtensionSettings> {

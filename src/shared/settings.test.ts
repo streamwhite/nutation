@@ -9,12 +9,12 @@ describe('parseSettings', () => {
     expect(parseSettings(undefined)).toEqual(defaults);
   });
 
-  it('falls back to default api key when stored key is empty', () => {
+  it('keeps API key empty when stored key is empty', () => {
     const parsed = parseSettings({
       provider: 'openai',
       apiKey: '   ',
     });
-    expect(parsed.apiKey).toBe(getDefaultSettings().apiKey);
+    expect(parsed.apiKey).toBe('');
   });
 
   it('normalizes base url', () => {
@@ -86,6 +86,28 @@ describe('parseSettings', () => {
       model: 'my-model',
     });
     expect(parsed.baseUrl).toBe('https://my-proxy.example/v1/chat/completions');
+  });
+
+  it('requires consent before keeping the DeepSeek provider', () => {
+    const withoutConsent = parseSettings({
+      provider: 'deepseek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-v4-flash',
+    });
+    expect(withoutConsent.allowChinaDataTransfer).toBe(false);
+    expect(withoutConsent.provider).not.toBe('deepseek');
+    expect(withoutConsent.baseUrl).not.toContain('api.deepseek.com');
+
+    const withConsent = parseSettings({
+      provider: 'deepseek',
+      allowChinaDataTransfer: true,
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-v4-flash',
+    });
+    expect(withConsent.allowChinaDataTransfer).toBe(true);
+    expect(withConsent.provider).toBe('deepseek');
+    expect(withConsent.baseUrl).toBe('https://api.deepseek.com/v1');
+    expect(withConsent.model).toBe('deepseek-v4-flash');
   });
 
   it('defaults auto recover to enabled', () => {

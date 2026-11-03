@@ -26,8 +26,6 @@ export type CacheStoreStats = {
   maxEntries: number;
   estimatedBytes: number;
   estimatedMaxBytes: number;
-  storageUsageBytes: number | null;
-  storageQuotaBytes: number | null;
 };
 
 const RECORD_OVERHEAD_BYTES = 24;
@@ -269,28 +267,11 @@ async function estimateStoreBytes(store: IDBObjectStore): Promise<number> {
   });
 }
 
-async function readStorageEstimate(): Promise<{ usage: number; quota: number } | null> {
-  if (!navigator.storage?.estimate) {
-    return null;
-  }
-
-  try {
-    const estimate = await navigator.storage.estimate();
-    if (typeof estimate.usage !== 'number' || typeof estimate.quota !== 'number') {
-      return null;
-    }
-    return { usage: estimate.usage, quota: estimate.quota };
-  } catch {
-    return null;
-  }
-}
-
 export async function getCacheStoreStats(
   maxEntries = TRANSLATION_CACHE_MAX_ENTRIES,
 ): Promise<CacheStoreStats> {
   const limit = resolveCacheMaxEntries(maxEntries);
   const estimatedMaxBytes = estimateCacheCapacityBytes(limit);
-  const storage = await readStorageEstimate();
 
   if (!isIndexedDbAvailable()) {
     return {
@@ -298,8 +279,6 @@ export async function getCacheStoreStats(
       maxEntries: limit,
       estimatedBytes: 0,
       estimatedMaxBytes,
-      storageUsageBytes: storage?.usage ?? null,
-      storageQuotaBytes: storage?.quota ?? null,
     };
   }
 
@@ -311,8 +290,6 @@ export async function getCacheStoreStats(
       maxEntries: limit,
       estimatedBytes,
       estimatedMaxBytes,
-      storageUsageBytes: storage?.usage ?? null,
-      storageQuotaBytes: storage?.quota ?? null,
     };
   });
 }

@@ -35,7 +35,7 @@ export function getBatchPackOptions(
     return {
       maxItems: TRANSLATE_BULK_BATCH_SIZE,
       maxChars: TRANSLATE_BULK_BATCH_MAX_CHARS,
-      useFastLane: false,
+      useFastLane: true,
     };
   }
   return {

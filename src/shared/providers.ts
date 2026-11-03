@@ -25,6 +25,19 @@ export const PROVIDER_IDS = [
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
+export const CHINA_PROVIDER_IDS = ['deepseek'] as const;
+
+export function isChinaProvider(provider: ProviderId): boolean {
+  return (CHINA_PROVIDER_IDS as readonly string[]).includes(provider);
+}
+
+export function isProviderAllowed(
+  provider: ProviderId,
+  allowChinaDataTransfer: boolean,
+): boolean {
+  return allowChinaDataTransfer || !isChinaProvider(provider);
+}
+
 export const PROVIDER_LABEL_IDS: Record<ProviderId, MessageId> = {
   openrouter: 'options.provider.openrouter',
   vercel: 'options.provider.vercel',

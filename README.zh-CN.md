@@ -40,13 +40,13 @@ Nutation（章动）是一个浏览器网页翻译扩展。它只翻译真正需
 
 1. 安装 Nutation（见下方“安装”）。
 2. 打开扩展的 **设置 / Options**。
-3. 选择服务商，填写对应的 **API Key**。
+3. 选择服务商，填写对应的 **API Key**（请自行通过互联网搜索对应供应商的官方文档获取 API Key）。
 4. 选择模型，并设置默认目标语言。
 5. 点击 **保存设置**。
 6. 打开任意网页，点击工具栏中的 Nutation 图标。
 7. 点击 **翻译页面**；需要恢复原文时点击 **恢复原文**。
 
-> API Key 只保存在浏览器本地存储中。网页文本会直接发送给你选择的服务商，Nutation 不经过自己的服务器。
+> API Key 只保存在浏览器本地存储中。网页文本会直接发送给你选择的服务商，Nutation 不经过自己的服务器。Nutation 不提供或转售 API Key，请从对应服务商官网自行申请。
 
 ## 推荐模型（cost effective）
 
@@ -123,6 +123,8 @@ pnpm release      # 打包各市场 zip 到 release/
 ## 开发
 
 技术栈：WXT + React + Tailwind CSS + TypeScript。
+
+项目内置默认配置，不需要 `.env` 或 `.env.production`。用户只需在扩展设置中配置服务商和 API Key。
 
 ```bash
 pnpm test       # 单元测试

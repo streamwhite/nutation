@@ -24,6 +24,8 @@ export type CacheHitStats = {
   lookups: number;
 };
 
+export type PartialTranslationsHandler = (translations: TextChunk[]) => void;
+
 export class InPageTranslator {
   private readonly sessionCache = new Map<string, string>();
   private readonly inflight = new Map<string, Promise<string>>();
@@ -79,9 +81,21 @@ export class InPageTranslator {
     });
   }
 
-  async translate(batch: TextChunk[]): Promise<InPageTranslateResult> {
+  async translate(
+    batch: TextChunk[],
+    onPartial?: PartialTranslationsHandler,
+  ): Promise<InPageTranslateResult> {
     const hits: TextChunk[] = [];
     const missing: TextChunk[] = [];
+    let emittedHits = 0;
+
+    const emitHits = () => {
+      if (!onPartial || hits.length <= emittedHits) {
+        return;
+      }
+      onPartial(hits.slice(emittedHits));
+      emittedHits = hits.length;
+    };
 
     for (const item of batch) {
       const normalized = normalizeCacheText(item.text);
@@ -100,8 +114,12 @@ export class InPageTranslator {
       missing.push(next);
     }
 
+    // Show session-cached text immediately instead of waiting for the network.
+    emitHits();
+
     if (missing.length > 0) {
       await this.hydrateFromStore(missing, hits);
+      emitHits();
     }
 
     if (missing.length === 0) {
@@ -119,8 +137,13 @@ export class InPageTranslator {
 
     const fresh: TextChunk[] = [];
 
+    const alreadyTarget: TextChunk[] = [];
     for (const item of alreadyTargetItems) {
-      fresh.push({ id: item.id, text: item.text });
+      alreadyTarget.push({ id: item.id, text: item.text });
+    }
+    if (alreadyTarget.length > 0) {
+      fresh.push(...alreadyTarget);
+      onPartial?.(alreadyTarget);
     }
 
     if (localItems.length > 0) {
@@ -130,6 +153,7 @@ export class InPageTranslator {
           convertBatchWithOpenCC(items, this.targetLang)
         ));
         fresh.push(...converted);
+        onPartial?.(converted);
       } finally {
         this.timing.end('opencc_convert');
       }

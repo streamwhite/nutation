@@ -29,6 +29,7 @@ describe('saveSettings', () => {
     const { saveSettings } = await import('@/shared/settings');
     const saved = await saveSettings({
       provider: 'openrouter',
+      allowChinaDataTransfer: false,
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: 'secret',
       model: 'deepseek/deepseek-v4-flash',
@@ -80,6 +81,7 @@ describe('loadSettings model normalization', () => {
     const { saveSettings } = await import('@/shared/settings');
     const saved = await saveSettings({
       provider: 'gemini',
+      allowChinaDataTransfer: false,
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
       apiKey: 'secret',
       model: 'gemini-3.1-flash-lite',

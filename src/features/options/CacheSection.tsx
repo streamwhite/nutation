@@ -61,12 +61,13 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
     void refresh(settings.cacheMaxEntries);
   }, [settings.cacheMaxEntries, refresh]);
 
+  const resolvedEntries = resolveCacheMaxEntries(maxEntries, settings.cacheMaxEntries);
+
   const handleSave = async () => {
     setError(null);
     setSaving(true);
     try {
-      const resolved = resolveCacheMaxEntries(maxEntries, settings.cacheMaxEntries);
-      const savedSettings = await onSave({ cacheMaxEntries: resolved });
+      const savedSettings = await onSave({ cacheMaxEntries: resolvedEntries });
       await trimStoreToMaxEntries(savedSettings.cacheMaxEntries);
       setMaxEntries(String(savedSettings.cacheMaxEntries));
       await refresh(savedSettings.cacheMaxEntries);
@@ -82,7 +83,7 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
     setError(null);
     try {
       await clearTranslationCache();
-      await refresh(resolveCacheMaxEntries(maxEntries, settings.cacheMaxEntries));
+      await refresh(resolvedEntries);
     } catch (failure) {
       setError(errorMessage(failure));
     }
@@ -90,7 +91,7 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
 
   const estimate = intl.formatMessage(
     { id: 'options.cache.capacityEstimate' },
-    { size: formatBytes(estimateCacheCapacityBytes(resolveCacheMaxEntries(maxEntries))) },
+    { size: formatBytes(estimateCacheCapacityBytes(resolvedEntries)) },
   );
 
   const rows: Array<{ label: string; value: string }> = [
@@ -103,16 +104,6 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
     {
       label: intl.formatMessage({ id: 'options.cache.dataSize' }),
       value: stats ? formatBytes(stats.estimatedBytes) : '—',
-    },
-    {
-      label: intl.formatMessage({ id: 'options.cache.capacity' }),
-      value: stats
-        ? intl.formatMessage({ id: 'options.cache.upTo' }, { size: formatBytes(stats.estimatedMaxBytes) })
-        : '—',
-    },
-    {
-      label: intl.formatMessage({ id: 'options.cache.storageUsage' }),
-      value: stats ? formatStorageUsage(intl, stats) : '—',
     },
   ];
 
@@ -136,6 +127,7 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
             step={TRANSLATION_CACHE_MIN_ENTRIES}
             value={maxEntries}
             onChange={(event) => setMaxEntries(event.target.value)}
+            onBlur={() => setMaxEntries(String(resolvedEntries))}
           />
           <p className="text-xs text-muted-foreground">{estimate}</p>
         </div>
@@ -168,14 +160,4 @@ export function CacheSection({ settings, onSave }: CacheSectionProps) {
       </CardContent>
     </Card>
   );
-}
-
-function formatStorageUsage(
-  intl: ReturnType<typeof useIntl>,
-  stats: CacheStoreStats,
-): string {
-  if (stats.storageUsageBytes === null || stats.storageQuotaBytes === null) {
-    return intl.formatMessage({ id: 'options.cache.unavailable' });
-  }
-  return `${formatBytes(stats.storageUsageBytes)} / ${formatBytes(stats.storageQuotaBytes)}`;
 }

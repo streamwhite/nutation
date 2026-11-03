@@ -486,8 +486,7 @@ export class PageTranslator {
       return;
     }
 
-    const waitingForFirstPaint = this.translationMode === 'progressive'
-      && this.timing.getSummary().firstVisibleMs === null;
+    const waitingForFirstPaint = this.timing.getSummary().firstVisibleMs === null;
     const workerLimit = waitingForFirstPaint ? 1 : this.concurrency;
 
     while (this.inFlightCount < workerLimit) {
@@ -536,6 +535,30 @@ export class PageTranslator {
     this.launchWorkers();
   }
 
+  private applyTranslations(
+    translations: TextChunk[],
+    expand: Map<string, string[]>,
+    applied: Set<string>,
+  ): void {
+    this.timing.start('apply_dom');
+    const expanded = expandTranslations(translations, expand);
+    const titleNode = ensureDocumentTitleTextNode(document);
+    for (const item of expanded) {
+      if (applied.has(item.id)) {
+        continue;
+      }
+      const record = this.registry.get(item.id);
+      if (this.registry.applyTranslation(item.id, item.text)) {
+        applied.add(item.id);
+        this.timing.markFirstVisible();
+        if (titleNode && record?.node === titleNode) {
+          this.lastTitleTranslation = item.text;
+        }
+      }
+    }
+    this.timing.end('apply_dom');
+  }
+
   private async translateAndApply(
     batch: TextChunk[],
     expand: Map<string, string[]>,
@@ -544,20 +567,13 @@ export class PageTranslator {
       return;
     }
 
-    const result = await this.inPageTranslator.translate(batch);
-    this.timing.start('apply_dom');
-    const expanded = expandTranslations(result.translations, expand);
-    const titleNode = ensureDocumentTitleTextNode(document);
-    for (const item of expanded) {
-      const record = this.registry.get(item.id);
-      if (this.registry.applyTranslation(item.id, item.text)) {
-        this.timing.markFirstVisible();
-        if (titleNode && record?.node === titleNode) {
-          this.lastTitleTranslation = item.text;
-        }
-      }
-    }
-    this.timing.end('apply_dom');
+    const applied = new Set<string>();
+    const apply = (translations: TextChunk[]) => {
+      this.applyTranslations(translations, expand, applied);
+    };
+
+    const result = await this.inPageTranslator.translate(batch, apply);
+    apply(result.translations);
   }
 
   private handleBatchFailure(

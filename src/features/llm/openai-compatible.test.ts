@@ -6,6 +6,7 @@ const settings: ExtensionSettings = {
   provider: 'openrouter',
   baseUrl: 'https://api.example.com/v1',
   apiKey: 'test-key',
+  allowChinaDataTransfer: false,
   model: 'test-model',
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,

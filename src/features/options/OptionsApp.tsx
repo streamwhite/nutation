@@ -31,8 +31,8 @@ export function OptionsApp() {
       <div className="mx-auto grid max-w-2xl gap-6 p-6">
         <h1 className="sr-only">{intl.formatMessage({ id: 'options.title' })}</h1>
         <SettingsSection settings={settings} onSave={save} />
-        <TranslateOnOpenSection settings={settings} onSave={save} />
         <CacheSection settings={settings} onSave={save} />
+        <TranslateOnOpenSection settings={settings} onSave={save} />
       </div>
     </div>
   );

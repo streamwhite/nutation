@@ -157,9 +157,9 @@ describe('packBatchesByBudget', () => {
 });
 
 describe('getBatchPackOptions', () => {
-  it('uses one large batch budget for bulk mode', () => {
+  it('uses a fast-lane first batch plus large batches for bulk mode', () => {
     const options = getBatchPackOptions('bulk');
-    expect(options.useFastLane).toBe(false);
+    expect(options.useFastLane).toBe(true);
     expect(options.maxItems).toBe(TRANSLATE_BULK_BATCH_SIZE);
     expect(options.maxChars).toBe(TRANSLATE_BULK_BATCH_MAX_CHARS);
 

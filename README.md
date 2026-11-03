@@ -40,13 +40,13 @@ Get the latest packages from [GitHub Releases](../../releases/latest).
 
 1. Install Nutation (see “Installation” below).
 2. Open the extension **Settings / Options**.
-3. Choose a provider and enter its **API key**.
+3. Choose a provider and enter its **API key** (search the web for the provider's official documentation to get an API key).
 4. Choose a model and set your default target language.
 5. Click **Save settings**.
 6. Open any web page and click the Nutation icon in the toolbar.
 7. Click **Translate page**; click **Restore original** to switch back.
 
-> Your API key is stored only in local browser storage. Page text is sent directly to the provider you choose; Nutation does not route it through its own server.
+> Your API key is stored only in local browser storage. Page text is sent directly to the provider you choose; Nutation does not route it through its own server. Nutation does not provide or resell API keys; get one from the provider's official website.
 
 ## Recommended models (cost effective)
 
@@ -123,6 +123,8 @@ See [RELEASE.md](./RELEASE.md) (Chinese) for the full release workflow.
 ## Development
 
 Stack: WXT + React + Tailwind CSS + TypeScript.
+
+No `.env` or `.env.production` file is required. Defaults are built in; end users only configure the provider and API key in Settings.
 
 ```bash
 pnpm test       # unit tests

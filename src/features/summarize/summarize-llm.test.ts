@@ -35,6 +35,7 @@ const settings: ExtensionSettings = {
   provider: 'openrouter',
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKey: 'test-key',
+  allowChinaDataTransfer: false,
   model: 'openai/gpt-4o-mini',
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,

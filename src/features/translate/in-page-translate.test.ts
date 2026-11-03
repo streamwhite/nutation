@@ -19,6 +19,7 @@ const settings: ExtensionSettings = {
   provider: 'gemini',
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
   apiKey: 'test-key',
+  allowChinaDataTransfer: false,
   model: 'gemini-2.5-flash-lite',
   targetLang: 'zh-CN',
   autoRecoverContentScript: true,
@@ -187,6 +188,44 @@ describe('InPageTranslator', () => {
     expect(second.fromCache).toBe(1);
     expect(translator.getCacheStats().lookups).toBe(2);
     expect(translator.getCacheStats().hits).toBeGreaterThanOrEqual(1);
+  });
+
+  it('emits cached translations before waiting for the network', async () => {
+    translateBatchViaBackground.mockResolvedValueOnce([{ id: '0', text: '同一标题' }]);
+
+    const { InPageTranslator } = await import('@/features/translate/in-page-translate');
+    const timing = {
+      record: vi.fn(),
+      start: vi.fn(),
+      end: vi.fn(),
+    };
+    const translator = new InPageTranslator(settings, 'zh-CN', timing as never);
+
+    await translator.translate([{ id: '0', text: 'Same headline' }]);
+
+    const api = Promise.withResolvers<Array<{ id: string; text: string }>>();
+    translateBatchViaBackground.mockImplementationOnce(() => api.promise);
+
+    const partials: Array<Array<{ id: string; text: string }>> = [];
+    const pending = translator.translate(
+      [
+        { id: '0', text: 'Same headline' },
+        { id: '1', text: 'New headline' },
+      ],
+      (items) => partials.push(items),
+    );
+
+    expect(partials).toEqual([[{ id: '0', text: '同一标题' }]]);
+
+    api.resolve([{ id: '1', text: '新标题' }]);
+    const result = await pending;
+
+    expect(result.translations).toEqual([
+      { id: '0', text: '同一标题' },
+      { id: '1', text: '新标题' },
+    ]);
+    expect(result.fromCache).toBe(1);
+    expect(result.fromApi).toBe(1);
   });
 
   it('skips the llm when the text is already the target language', async () => {

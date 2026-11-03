@@ -15,7 +15,6 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_SUMMARY_POSITION: string;
   readonly VITE_DEFAULT_SUMMARY_FONT_PX: string;
   readonly VITE_DEFAULT_UI_LOCALE: string;
-  readonly VITE_DEV_API_KEY: string;
   readonly VITE_SUMMARIZE_MAX_CHARS: string;
   readonly VITE_SUMMARY_CACHE_MAX_ENTRIES: string;
   readonly VITE_OPENCC_T2S_FROM: string;

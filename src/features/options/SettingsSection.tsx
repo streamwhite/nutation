@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -32,6 +31,7 @@ import {
 } from '@/features/summarize/summary-position';
 import {
   getProviderPreset,
+  isProviderAllowed,
   listProvidersByCategory,
   PROVIDER_CATEGORIES,
   PROVIDER_CATEGORY_LABEL_IDS,
@@ -49,6 +49,7 @@ import {
 
 type Draft = {
   provider: ProviderId;
+  allowChinaDataTransfer: boolean;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -70,6 +71,7 @@ const UI_LOCALE_LABEL_IDS: Record<LocaleSetting, MessageId> = {
 function draftFromSettings(settings: ExtensionSettings): Draft {
   return {
     provider: settings.provider,
+    allowChinaDataTransfer: settings.allowChinaDataTransfer,
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
     model: settings.model,
@@ -108,12 +110,33 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
   };
 
   const onProviderChange = (next: ProviderId) => {
+    if (!isProviderAllowed(next, draft.allowChinaDataTransfer)) {
+      return;
+    }
     if (next === 'custom') {
       patchDraft({ provider: next });
       return;
     }
     const preset = getProviderPreset(next);
     patchDraft({ provider: next, baseUrl: preset.baseUrl, model: preset.defaultModel });
+  };
+
+  const onAllowChinaDataTransferChange = (allowed: boolean) => {
+    if (allowed) {
+      patchDraft({ allowChinaDataTransfer: true });
+      return;
+    }
+    if (draft.provider === 'deepseek') {
+      const fallback = getProviderPreset('openai');
+      patchDraft({
+        allowChinaDataTransfer: false,
+        provider: fallback.id,
+        baseUrl: fallback.baseUrl,
+        model: fallback.defaultModel,
+      });
+      return;
+    }
+    patchDraft({ allowChinaDataTransfer: false });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -133,6 +156,7 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
     try {
       await onSave({
         provider: draft.provider,
+        allowChinaDataTransfer: draft.allowChinaDataTransfer,
         baseUrl: resolveProviderBaseUrl(draft.provider, draft.baseUrl.trim()),
         apiKey: draft.apiKey,
         model: draft.model.trim(),
@@ -160,7 +184,6 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
     <Card>
       <CardHeader>
         <CardTitle>{intl.formatMessage({ id: 'options.title' })}</CardTitle>
-        <CardDescription>{intl.formatMessage({ id: 'options.subtitle' })}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
@@ -203,15 +226,34 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
                     <SelectLabel>
                       {intl.formatMessage({ id: PROVIDER_CATEGORY_LABEL_IDS[category] })}
                     </SelectLabel>
-                    {listProvidersByCategory(category).map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {intl.formatMessage({ id: PROVIDER_LABEL_IDS[item.id] })}
-                      </SelectItem>
-                    ))}
+                    {listProvidersByCategory(category)
+                      .filter((item) => isProviderAllowed(item.id, draft.allowChinaDataTransfer))
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {intl.formatMessage({ id: PROVIDER_LABEL_IDS[item.id] })}
+                        </SelectItem>
+                      ))}
                   </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid gap-1.5">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="allow-china-data"
+                checked={draft.allowChinaDataTransfer}
+                onCheckedChange={(checked) => onAllowChinaDataTransferChange(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="allow-china-data" className="font-normal">
+                {intl.formatMessage({ id: 'options.allowChinaData' })}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {intl.formatMessage({ id: 'options.allowChinaDataHint' })}
+            </p>
           </div>
 
           {isCustom && (
