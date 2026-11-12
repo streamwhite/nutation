@@ -57,6 +57,8 @@ type Draft = {
   translationMode: TranslationMode;
   summaryPosition: SummaryPosition;
   autoRecoverContentScript: boolean;
+  copyIncludeTitle: boolean;
+  copyIncludeDescription: boolean;
   copyIncludeLink: boolean;
   copySeparator: string;
   uiLocale: LocaleSetting;
@@ -79,6 +81,8 @@ function draftFromSettings(settings: ExtensionSettings): Draft {
     translationMode: settings.translationMode,
     summaryPosition: settings.summaryPosition,
     autoRecoverContentScript: settings.autoRecoverContentScript,
+    copyIncludeTitle: settings.copyIncludeTitle,
+    copyIncludeDescription: settings.copyIncludeDescription,
     copyIncludeLink: settings.copyIncludeLink,
     copySeparator: settings.copySeparator,
     uiLocale: settings.uiLocale,
@@ -164,6 +168,8 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
         translationMode: draft.translationMode,
         summaryPosition: draft.summaryPosition,
         autoRecoverContentScript: draft.autoRecoverContentScript,
+        copyIncludeTitle: draft.copyIncludeTitle,
+        copyIncludeDescription: draft.copyIncludeDescription,
         copyIncludeLink: draft.copyIncludeLink,
         copySeparator: draft.copySeparator,
         uiLocale: draft.uiLocale,
@@ -240,12 +246,11 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
           </div>
 
           <div className="grid gap-1.5">
-            <div className="flex items-start gap-2">
+            <div className="flex items-center gap-2">
               <Checkbox
                 id="allow-china-data"
                 checked={draft.allowChinaDataTransfer}
                 onCheckedChange={(checked) => onAllowChinaDataTransferChange(checked === true)}
-                className="mt-0.5"
               />
               <Label htmlFor="allow-china-data" className="font-normal">
                 {intl.formatMessage({ id: 'options.allowChinaData' })}
@@ -355,20 +360,30 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
             </p>
           </div>
 
-          <div className="grid gap-1.5">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="copy-include-link"
-                checked={draft.copyIncludeLink}
-                onCheckedChange={(checked) => patchDraft({ copyIncludeLink: checked === true })}
-                className="mt-0.5"
-              />
-              <Label htmlFor="copy-include-link" className="font-normal">
-                {intl.formatMessage({ id: 'options.copyIncludeLink' })}
-              </Label>
+          <div className="grid gap-2">
+            <p className="text-sm font-medium">{intl.formatMessage({ id: 'options.copyFields' })}</p>
+            <div className="grid gap-1.5">
+              {([
+                ['title', draft.copyIncludeTitle, 'copyIncludeTitle'],
+                ['description', draft.copyIncludeDescription, 'copyIncludeDescription'],
+                ['link', draft.copyIncludeLink, 'copyIncludeLink'],
+              ] as const).map(([field, checked, messageId]) => (
+                <div key={field} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`copy-include-${field}`}
+                    checked={checked}
+                    onCheckedChange={(next) => patchDraft({
+                      [messageId]: next === true,
+                    })}
+                  />
+                  <Label htmlFor={`copy-include-${field}`} className="font-normal">
+                    {intl.formatMessage({ id: `options.${messageId}` })}
+                  </Label>
+                </div>
+              ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              {intl.formatMessage({ id: 'options.copyIncludeLinkHint' })}
+              {intl.formatMessage({ id: 'options.copyFieldsHint' })}
             </p>
           </div>
 
@@ -389,12 +404,11 @@ export function SettingsSection({ settings, onSave }: SettingsSectionProps) {
             </p>
           </div>
 
-          <div className="flex items-start gap-2">
+          <div className="flex items-center gap-2">
             <Checkbox
               id="auto-recover"
               checked={draft.autoRecoverContentScript}
               onCheckedChange={(checked) => patchDraft({ autoRecoverContentScript: checked === true })}
-              className="mt-0.5"
             />
             <Label htmlFor="auto-recover" className="font-normal">
               {intl.formatMessage({ id: 'options.autoRecover' })}

@@ -147,6 +147,15 @@ describe('parseSettings', () => {
     expect(parseSettings({ copyIncludeLink: false }).copyIncludeLink).toBe(false);
   });
 
+  it('defaults copied title and description to enabled', () => {
+    expect(getDefaultSettings().copyIncludeTitle).toBe(true);
+    expect(getDefaultSettings().copyIncludeDescription).toBe(true);
+    expect(parseSettings({}).copyIncludeTitle).toBe(true);
+    expect(parseSettings({}).copyIncludeDescription).toBe(true);
+    expect(parseSettings({ copyIncludeTitle: false }).copyIncludeTitle).toBe(false);
+    expect(parseSettings({ copyIncludeDescription: false }).copyIncludeDescription).toBe(false);
+  });
+
   it('defaults the copy separator to a colon', () => {
     expect(getDefaultSettings().copySeparator).toBe(':');
     expect(parseSettings({}).copySeparator).toBe(':');

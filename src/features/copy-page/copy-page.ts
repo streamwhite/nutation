@@ -24,7 +24,12 @@ export async function buildTranslatedPageInfo(
   targetLang: string,
   doc: Document = document,
 ): Promise<string> {
-  const info = readPageInfo(doc, settings.copyIncludeLink);
+  const pageInfo = readPageInfo(doc, settings.copyIncludeLink);
+  const info = {
+    ...pageInfo,
+    title: settings.copyIncludeTitle ? pageInfo.title : '',
+    description: settings.copyIncludeDescription ? pageInfo.description : '',
+  };
   const chunks = buildChunks(info);
   if (chunks.length === 0) {
     return formatPageInfo(info, settings.copySeparator);

@@ -38,6 +38,8 @@ export type ExtensionSettings = {
   translateOnOpenRules: TranslateOnOpenRule[];
   summaryPosition: SummaryPosition;
   cacheMaxEntries: number;
+  copyIncludeTitle: boolean;
+  copyIncludeDescription: boolean;
   copyIncludeLink: boolean;
   copySeparator: string;
   uiLocale: LocaleSetting;
@@ -67,6 +69,8 @@ export function getDefaultSettings(): ExtensionSettings {
       import.meta.env.VITE_DEFAULT_CACHE_MAX_ENTRIES,
       TRANSLATION_CACHE_MAX_ENTRIES,
     ),
+    copyIncludeTitle: true,
+    copyIncludeDescription: true,
     copyIncludeLink: true,
     copySeparator: PAGE_INFO_SEPARATOR,
     uiLocale: resolveLocaleSetting(import.meta.env.VITE_DEFAULT_UI_LOCALE),
@@ -123,6 +127,8 @@ export function parseSettings(raw: unknown): ExtensionSettings {
       value.summaryPosition ?? defaults.summaryPosition,
     ),
     cacheMaxEntries: resolveCacheMaxEntries(value.cacheMaxEntries, defaults.cacheMaxEntries),
+    copyIncludeTitle: value.copyIncludeTitle !== false,
+    copyIncludeDescription: value.copyIncludeDescription !== false,
     copyIncludeLink: value.copyIncludeLink !== false,
     copySeparator: typeof value.copySeparator === 'string' && value.copySeparator !== ''
       ? value.copySeparator

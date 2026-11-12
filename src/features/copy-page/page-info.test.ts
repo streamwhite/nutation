@@ -23,6 +23,8 @@ const settings: ExtensionSettings = {
   translateOnOpenRules: [],
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
+  copyIncludeTitle: true,
+  copyIncludeDescription: true,
   copyIncludeLink: true,
   copySeparator: ':',
   uiLocale: 'auto',
@@ -151,5 +153,39 @@ describe('buildTranslatedPageInfo', () => {
     );
 
     expect(result).toBe('Titulo');
+  });
+
+  it('translates and copies only selected fields', async () => {
+    document.head.innerHTML = '<meta name="description" content="Original description" />';
+    document.title = 'Original title';
+    mockTranslate.mockResolvedValue({
+      translations: [{ id: 'page-info-description', text: 'Descripcion' }],
+      fromCache: 0,
+      fromApi: 1,
+    });
+
+    const { buildTranslatedPageInfo } = await import('@/features/copy-page/copy-page');
+    const result = await buildTranslatedPageInfo(
+      { ...settings, copyIncludeTitle: false, copyIncludeLink: false },
+      'es',
+    );
+
+    expect(mockTranslate).toHaveBeenCalledWith([
+      { id: 'page-info-description', text: 'Original description' },
+    ]);
+    expect(result).toBe('Descripcion');
+  });
+
+  it('does not call the translator when title and description are disabled', async () => {
+    document.title = 'Original title';
+
+    const { buildTranslatedPageInfo } = await import('@/features/copy-page/copy-page');
+    const result = await buildTranslatedPageInfo(
+      { ...settings, copyIncludeTitle: false, copyIncludeDescription: false },
+      'es',
+    );
+
+    expect(mockTranslate).not.toHaveBeenCalled();
+    expect(result).toBe('http://localhost:3000/');
   });
 });

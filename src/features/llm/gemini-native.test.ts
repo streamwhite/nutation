@@ -16,6 +16,8 @@ const settings: ExtensionSettings = {
   translateOnOpenRules: [],
   summaryPosition: 'right',
   cacheMaxEntries: 1_000_000,
+  copyIncludeTitle: true,
+  copyIncludeDescription: true,
   copyIncludeLink: true,
   copySeparator: ':',
   uiLocale: 'auto',

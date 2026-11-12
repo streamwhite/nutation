@@ -185,6 +185,10 @@ function warmProvider(settings: ExtensionSettings): void {
   }).catch(() => undefined);
 }
 
+function copyNeedsTranslation(settings: ExtensionSettings): boolean {
+  return settings.copyIncludeTitle || settings.copyIncludeDescription;
+}
+
 export function usePopupController(): PopupController {
   const intl = useIntl();
   const [tabCount, setTabCount] = useState(1);
@@ -433,7 +437,8 @@ export function usePopupController(): PopupController {
     setReloadTabId(null);
 
     const settings = await loadSettings();
-    if (!requireApiKey(settings)) {
+    const needsTranslation = copyNeedsTranslation(settings);
+    if (needsTranslation && !requireApiKey(settings)) {
       return;
     }
 
@@ -446,7 +451,9 @@ export function usePopupController(): PopupController {
       return;
     }
 
-    warmProvider(settings);
+    if (needsTranslation) {
+      warmProvider(settings);
+    }
     setBusy('copy');
     setStatusText(intl.formatMessage({ id: 'popup.copyStarting' }));
 
@@ -498,10 +505,16 @@ export function usePopupController(): PopupController {
     void (async () => {
       try {
         const settings = await loadSettings();
-        if (cancelled || !requireApiKey(settings)) {
+        if (cancelled) {
           return;
         }
-        warmProvider(settings);
+        const needsTranslation = copyNeedsTranslation(settings);
+        if (needsTranslation && !requireApiKey(settings)) {
+          return;
+        }
+        if (needsTranslation) {
+          warmProvider(settings);
+        }
         await refreshRef.current();
       } catch (failure) {
         if (!cancelled) {
