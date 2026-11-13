@@ -58,10 +58,9 @@ export async function ensureCompleteTranslations(
 
   const merged = mergeTranslations(texts, collected);
   const incompleteIds = findIncompleteTranslationIds(texts, merged);
-  const missingCount = incompleteIds.filter((id) => !merged.some((item) => item.id === id)).length;
-  if (missingCount > 0 && merged.length === 0) {
+  if (incompleteIds.length > 0) {
     throw new TranslationRequestError(
-      `Missing translations for ${missingCount} items`,
+      `Missing translations for ${incompleteIds.length} items`,
       null,
       true,
     );

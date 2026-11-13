@@ -11,8 +11,9 @@ import {
 } from '@/features/content-script/frame-messaging';
 import {
   contentScriptUnavailableMessage,
-  formatStatus,
+  formatStatusMessage,
   noTranslatableTabsMessage,
+  resolveStatusMessage,
   restoredTabsMessage,
   skippedRestrictedMessage,
   startedTabsMessage,
@@ -34,6 +35,7 @@ import type {
   SummarizePageResponse,
   TabStatus,
 } from '@/features/translate/types';
+import type { StatusMessage } from '@/features/popup/status';
 
 export type BusyAction = 'summarize' | 'copy' | 'reload' | null;
 
@@ -130,7 +132,7 @@ async function sendToTab<T>(
   tabId: number,
   message: ContentScriptMessage,
   autoRecover: boolean,
-  onProgress: (message: string) => void,
+  onProgress: (message: StatusMessage) => void,
 ): Promise<T> {
   try {
     const results = await sendMessageToAllFrames<T>(tabId, message);
@@ -143,13 +145,13 @@ async function sendToTab<T>(
       throw connectionError(intl, error);
     }
 
-    onProgress(intl.formatMessage({ id: 'popup.recovering' }));
+    onProgress({ id: 'popup.recovering' });
     const recovered = await recoverContentScript(tabId);
     if (!recovered.ok) {
       throw new Error(recovered.error ?? 'Failed to recover content script');
     }
     if (recovered.recovered && recovered.method === 'reload') {
-      onProgress(intl.formatMessage({ id: 'popup.pageReloadedRetry' }));
+      onProgress({ id: 'popup.pageReloadedRetry' });
     }
 
     try {
@@ -166,7 +168,7 @@ async function runOnTabs(
   tabs: PopupTab[],
   autoRecover: boolean,
   message: ContentScriptMessage,
-  onProgress: (message: string) => void,
+  onProgress: (message: StatusMessage) => void,
 ): Promise<MultiTabResult[]> {
   return Promise.all(tabs.map(async (tab) => {
     try {
@@ -192,7 +194,8 @@ function copyNeedsTranslation(settings: ExtensionSettings): boolean {
 export function usePopupController(): PopupController {
   const intl = useIntl();
   const [tabCount, setTabCount] = useState(1);
-  const [statusText, setStatusText] = useState(() => intl.formatMessage({ id: 'popup.status.idle' }));
+  const [statusMessage, setStatusMessage] = useState<StatusMessage>({ id: 'popup.status.idle' });
+  const statusText = formatStatusMessage(intl, statusMessage);
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadTabId, setReloadTabId] = useState<number | null>(null);
@@ -201,14 +204,14 @@ export function usePopupController(): PopupController {
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
 
   const applyStatus = (status: TabStatus, count: number) => {
-    setStatusText(formatStatus(intl, status, count));
+    setStatusMessage(resolveStatusMessage(status, count));
     setError(status.error);
     setReloadTabId(null);
     setTranslating(status.active);
   };
 
   const showIdle = () => {
-    setStatusText(intl.formatMessage({ id: 'popup.status.idle' }));
+    setStatusMessage({ id: 'popup.status.idle' });
   };
 
   const handleStatusError = async (failure: unknown) => {
@@ -216,7 +219,7 @@ export function usePopupController(): PopupController {
     setTranslating(false);
 
     if (RESTRICTED_PAGE_PATTERN.test(message)) {
-      setStatusText(intl.formatMessage({ id: 'popup.openWebsiteTab' }));
+      setStatusMessage({ id: 'popup.openWebsiteTab' });
       setError(null);
       setReloadTabId(null);
       return;
@@ -241,7 +244,7 @@ export function usePopupController(): PopupController {
     const { translatable } = partitionTranslatableTabs(tabs);
     const tab = translatable[0] ?? tabs[0];
     if (!tab || isRestrictedUrl(tab.url)) {
-      setStatusText(intl.formatMessage({ id: 'popup.openWebsiteTab' }));
+      setStatusMessage({ id: 'popup.openWebsiteTab' });
       setError(null);
       setReloadTabId(null);
       setTranslating(false);
@@ -255,7 +258,7 @@ export function usePopupController(): PopupController {
         item.id,
         { type: MESSAGE_TYPES.GET_TAB_STATUS },
         settings.autoRecoverContentScript,
-        setStatusText,
+        setStatusMessage,
       )));
       applyStatus(mergeTabStatuses(statuses), translatable.length);
     } catch (failure) {
@@ -309,15 +312,15 @@ export function usePopupController(): PopupController {
     }
 
     warmProvider(settings);
-    setStatusText(intl.formatMessage(
-      { id: translatable.length > 1 ? 'popup.startingTabs' : 'popup.starting' },
-      { count: translatable.length },
-    ));
+    setStatusMessage({
+      id: translatable.length > 1 ? 'popup.startingTabs' : 'popup.starting',
+      values: { count: translatable.length },
+    });
 
     const results = await runOnTabs(intl, translatable, settings.autoRecoverContentScript, {
       type: MESSAGE_TYPES.START_TRANSLATE,
       targetLang: settings.targetLang,
-    }, setStatusText);
+    }, setStatusMessage);
     const summary = summarizeMultiTabResults(results);
 
     if (summary.started > 0) {
@@ -375,7 +378,7 @@ export function usePopupController(): PopupController {
     const settings = await loadSettings();
     const results = await runOnTabs(intl, translatable, settings.autoRecoverContentScript, {
       type: MESSAGE_TYPES.STOP_TRANSLATE,
-    }, setStatusText);
+    }, setStatusMessage);
     const summary = summarizeMultiTabResults(results);
 
     if (summary.started > 0) {
@@ -409,21 +412,21 @@ export function usePopupController(): PopupController {
 
     warmProvider(settings);
     setBusy('summarize');
-    setStatusText(intl.formatMessage({ id: 'popup.summarizeStarting' }));
+    setStatusMessage({ id: 'popup.summarizeStarting' });
 
     try {
       const result = await sendToTab<SummarizePageResponse>(intl, tab.id, {
         type: MESSAGE_TYPES.SUMMARIZE_PAGE,
         targetLang: settings.targetLang,
-      }, settings.autoRecoverContentScript, setStatusText);
+      }, settings.autoRecoverContentScript, setStatusMessage);
       if (!result.ok) {
         setError(result.error);
         showIdle();
         return;
       }
-      setStatusText(intl.formatMessage({
+      setStatusMessage({
         id: result.fromCache ? 'popup.summarizeDoneFromCache' : 'popup.summarizeDone',
-      }));
+      });
     } catch (failure) {
       setError(errorMessage(failure));
       showIdle();
@@ -455,20 +458,20 @@ export function usePopupController(): PopupController {
       warmProvider(settings);
     }
     setBusy('copy');
-    setStatusText(intl.formatMessage({ id: 'popup.copyStarting' }));
+    setStatusMessage({ id: 'popup.copyStarting' });
 
     try {
       const result = await sendToTab<CopyPageInfoResponse>(intl, tab.id, {
         type: MESSAGE_TYPES.COPY_PAGE_INFO,
         targetLang: settings.targetLang,
-      }, settings.autoRecoverContentScript, setStatusText);
+      }, settings.autoRecoverContentScript, setStatusMessage);
       if (!result.ok) {
         setError(result.error);
         showIdle();
         return;
       }
       await navigator.clipboard.writeText(result.text);
-      setStatusText(intl.formatMessage({ id: 'popup.copyDone' }));
+      setStatusMessage({ id: 'popup.copyDone' });
     } catch (failure) {
       setError(errorMessage(failure));
       showIdle();
@@ -484,11 +487,11 @@ export function usePopupController(): PopupController {
     const tabId = reloadTabId;
     setBusy('reload');
     setError(null);
-    setStatusText(intl.formatMessage({ id: 'popup.reloading' }));
+    setStatusMessage({ id: 'popup.reloading' });
 
     try {
       await browser.tabs.reload(tabId);
-      setStatusText(intl.formatMessage({ id: 'popup.pageReloadedStarting' }));
+      setStatusMessage({ id: 'popup.pageReloadedStarting' });
       setReloadTabId(null);
       await translate();
     } catch (failure) {

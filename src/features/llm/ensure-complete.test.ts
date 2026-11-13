@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ensureCompleteTranslations } from '@/features/llm/ensure-complete';
+import { TranslationRequestError } from '@/features/llm/retry';
 
 describe('ensureCompleteTranslations', () => {
   it('retries missing and truncated items', async () => {
@@ -58,7 +59,7 @@ describe('ensureCompleteTranslations', () => {
     expect(translate.mock.calls.slice(1).every((call) => call[0].length <= 6)).toBe(true);
   });
 
-  it('returns partial translations instead of throwing when some items succeed', async () => {
+  it('marks missing translations as retryable even when some items succeed', async () => {
     const translate = vi.fn(async (batch: Array<{ id: string; text: string }>) => {
       if (batch.length > 1) {
         return [{ id: '0', text: '你好' }];
@@ -66,7 +67,7 @@ describe('ensureCompleteTranslations', () => {
       return [];
     });
 
-    const result = await ensureCompleteTranslations(
+    const pending = ensureCompleteTranslations(
       [
         { id: '0', text: 'Hello' },
         { id: '1', text: 'World' },
@@ -74,7 +75,9 @@ describe('ensureCompleteTranslations', () => {
       translate,
     );
 
-    expect(result).toEqual([{ id: '0', text: '你好' }]);
+    const error = await pending.catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(TranslationRequestError);
+    expect(error).toMatchObject({ retryable: true });
   });
 
   it('retries when the first pass returns no parsed items', async () => {

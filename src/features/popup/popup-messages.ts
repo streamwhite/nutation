@@ -1,16 +1,22 @@
 import type { IntlShape } from 'react-intl';
 import { formatCacheRate, statusMessage } from '@/features/popup/status';
+import type { StatusMessage } from '@/features/popup/status';
 import type { MultiTabSummary } from '@/features/popup/selected-tabs';
 import type { TabStatus } from '@/features/translate/types';
 
-export function formatStatus(
-  intl: IntlShape,
+export function resolveStatusMessage(
   status: TabStatus,
   tabCount: number,
-): string {
+): StatusMessage {
   const rate = formatCacheRate(status.cacheHits, status.cacheLookups);
-  const { id, values } = statusMessage(status.active, tabCount, rate);
-  return intl.formatMessage({ id }, values);
+  return statusMessage(status.active, tabCount, rate);
+}
+
+export function formatStatusMessage(
+  intl: IntlShape,
+  message: StatusMessage,
+): string {
+  return intl.formatMessage({ id: message.id }, message.values);
 }
 
 export function contentScriptUnavailableMessage(

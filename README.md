@@ -2,31 +2,31 @@
 
 **English** | [简体中文](./README.zh-CN.md)
 
-Nutation is a browser extension for translating web pages. It translates only what is worth reading: the **full article body on detail pages**, and **titles plus descriptions on listing pages**, reducing useless translation and API usage.
+Nutation is a browser extension built for readers. It supports multiple languages and AI models, delivers fast, accurate translation, and focuses only on the content worth reading: **the article body on detail pages, and titles plus descriptions on listing pages**. Less noise, more reading, and a lower API bill.
 
-It works with Chrome, Edge, Firefox and Safari, and with any OpenAI-compatible endpoint.
+`Multi-language` · `Multi-model` · `Fast` · `Accurate` · `Cost-effective` · `Privacy stays local`
 
-## Download
+## Why choose Nutation
 
-Get the latest packages from [GitHub Releases](../../releases/latest).
+- **See translations sooner**: the first useful content is prioritized, multiple tabs run in parallel, new content translates as you scroll, and cache hits appear instantly.
+- **More accurate where it matters**: Nutation recognizes article bodies and listing items, skips navigation, sidebars, ads, comments and related links, and lets the model focus on real content.
+- **Spend less**: no translating content nobody reads, no repeated requests for identical text, and the freedom to choose cost-effective models.
+- **Never locked to one provider**: OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, OpenRouter, Vercel AI Gateway, or any OpenAI-compatible endpoint. Switch whenever you want.
+- **Privacy stays local by default**: your API key and settings live in local browser storage; page text goes directly to the provider you choose, never through a Nutation server.
 
-## Features
+## Core capabilities
 
 - **In-place page translation** into your target language, with full-page-first and viewport-first modes.
 - **Multi-tab translation**: translate several selected tabs in one click.
-- **Scroll-aware translation**: new content is translated automatically as you scroll.
-- **Fast translation**: concurrent batching and cache hits keep long pages flowing.
-- **Smart content scope**:
-  - Article/detail pages: translate the headline and main body only.
-  - Listing/feed pages: translate titles and descriptions only.
-  - Automatically skip navigation, sidebars, comments, related stories, newsletter prompts, ads, pagination and other non-content areas.
-- **Multiple providers**: OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, OpenRouter, Vercel AI Gateway, or any custom OpenAI-compatible endpoint.
-- **Flexible configuration**: configure providers, models, target language, translation mode, summary position, cache limits and site-specific auto-translate rules.
-- **AI page summary** in a side overlay.
+- **Scroll-aware translation**: as the page loads more content, the translation keeps up.
+- **Smart content scope**: detail pages translate the headline and main body; listing pages translate titles and descriptions.
+- **AI page summary**: generate a concise summary in a side overlay.
 - **Copy page info**: copy the translated title, description and a tracking-parameter-free link in one click.
-- **Translation cache**: identical text is not requested twice, which keeps costs down.
-- **Complete privacy**: all personal information stays local.
-- **Translate on open**: automatically translate matching sites by URL prefix, domain or regular expression.
+- **Translation cache**: popular pages and repeated text come back almost instantly, saving time and money.
+- **Complete privacy**: personal information stays local.
+- **Translate on open**: automatically translate the sites you read most by URL prefix, domain or regular expression.
+- **Highly configurable**: providers, models, target language, translation mode, summary position, cache limits and auto-translate rules are all yours to tune.
+- **The site stays the same**: the page looks and behaves exactly as before translation — only the text is replaced.
 
 ## Supported providers
 
@@ -36,11 +36,17 @@ Get the latest packages from [GitHub Releases](../../releases/latest).
 | Direct providers | OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral |
 | Custom | Any OpenAI-compatible `/chat/completions` endpoint |
 
+> DeepSeek appears only after you explicitly enable “Allow sending data to providers in China” in Settings.
+
+## Download
+
+Get the latest package from [GitHub Releases](../../releases/latest).
+
 ## Quick start
 
 1. Install Nutation (see “Installation” below).
 2. Open the extension **Settings / Options**.
-3. Choose a provider and enter its **API key** (search the web for the provider's official documentation to get an API key).
+3. Choose a provider and enter its **API key** (search the web for the provider's official documentation to get one).
 4. Choose a model and set your default target language.
 5. Click **Save settings**.
 6. Open any web page and click the Nutation icon in the toolbar.
@@ -74,7 +80,7 @@ Store installation is not available yet (currently under review). Once approved,
 
 ### Offline installation
 
-Download the package for your browser from GitHub Releases. If you run the project from source, `pnpm release` generates the same files under `release/`.
+Download the package for your browser from [GitHub Releases](../../releases/latest). If you run the project from source, `pnpm release` generates the same files under `release/`.
 
 #### Chrome / Edge
 
@@ -114,10 +120,10 @@ See [RELEASE.md](./RELEASE.md) (Chinese) for the full release workflow.
 
 ## Usage tips
 
-- Listing pages translate only titles and descriptions, which is ideal for quickly scanning news, blogs, forums and search results.
-- Detail pages translate only the article body, which is ideal for articles, documentation and tutorials.
-- If a site has an unusual structure, choose **Custom** in Settings and enter your own OpenAI-compatible endpoint.
-- If cost matters, start with `gpt-6-luna` or `deepseek-v4.1-flash` and test on a listing page or a short article first.
+- Scanning news, blogs, forums and search results? Listing pages translate only titles and descriptions, so you can move faster.
+- Reading articles, documentation or tutorials? Detail pages translate only the body, so your attention stays on the content.
+- Unusual page structure? Choose **Custom** in Settings and connect your own OpenAI-compatible endpoint.
+- Watching costs? Start with `gpt-6-luna` or `deepseek-v4.1-flash` and test on a listing page or a short article first.
 - Translation only changes the current page's DOM; it does not modify the site's source files. Click **Restore original** to revert.
 
 ## Development
@@ -133,7 +139,7 @@ pnpm compile    # TypeScript type check
 
 ## Support this project
 
-If this project is helpful to you, please help by:
+If this project is helpful to you, please support it in one of the following ways to help keep it running well:
 
 - **Sponsoring or donating** to support ongoing maintenance (use the Sponsor entry on the repository page, or contact the maintainer for current donation options)
 - **Sharing this tool** with friends, teammates or your community
