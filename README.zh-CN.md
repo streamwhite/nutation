@@ -19,10 +19,6 @@ Nutation是一款为阅读而生的浏览器翻译扩展。它支持多种语言
 - **高度可配置**：服务商、模型、目标语言、翻译模式、摘要位置、缓存上限和自动翻译规则都可以自定义。
 - **体验不变**：翻译前后官网体验完全一致，只有文本被替代。
 
-## 下载
-
-从 [GitHub Releases](../../releases/latest) 获取最新安装包。
-
 ## 快速开始
 
 1. 安装 Nutation（见下方“安装”）。
@@ -62,7 +58,7 @@ Nutation是一款为阅读而生的浏览器翻译扩展。它支持多种语言
 
 ### 离线安装
 
-从 [GitHub Releases](../../releases/latest) 获取最新安装包；如果你是从源码运行，执行 `pnpm release` 后，同样的文件会生成在 `release/` 目录。
+从 [https://dl.piaosiyuan.cn/Nutation/](https://dl.piaosiyuan.cn/Nutation/) 获取最新安装包；如果你是从源码运行，执行 `pnpm release` 后，同样的文件会生成在 `release/` 目录。
 
 #### Chrome / Edge
 
